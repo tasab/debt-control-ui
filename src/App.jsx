@@ -1,60 +1,127 @@
-import { NavLink, Navigate, Route, Routes } from 'react-router-dom'
-import { cn } from '@/lib/utils'
-import Dashboard from './pages/Dashboard.jsx'
-import Entry from './pages/Entry.jsx'
-import History from './pages/History.jsx'
-import People from './pages/People.jsx'
-import PersonDetail from './pages/PersonDetail.jsx'
-import Currencies from './pages/Currencies.jsx'
-import Audit from './pages/Audit.jsx'
+import { Link, Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom'
+import { Toaster } from '@/components/ui/sonner'
+import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
+import { AppShell } from '@/components/layout/AppShell'
+import { ErrorBoundary } from '@/components/layout/states'
+import { AuthProvider, landingFor, useAuth } from '@/lib/auth'
 
-const navItems = [
-  { to: '/dashboard', label: 'Dashboard' },
-  { to: '/entry', label: 'Daily Entry' },
-  { to: '/history', label: 'History' },
-  { to: '/people', label: 'People' },
-  { to: '/currencies', label: 'Currencies' },
-  { to: '/audit', label: 'Audit' },
-]
-
-const linkClass = ({ isActive }) =>
-  cn(
-    'rounded-md px-3 py-2 text-sm font-medium transition-colors',
-    isActive
-      ? 'bg-primary text-primary-foreground shadow-xs'
-      : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
-  )
+import Login from '@/pages/auth/Login.jsx'
+import Register from '@/pages/auth/Register.jsx'
+import Wallet from '@/pages/wallet/Wallet.jsx'
+import Transfer from '@/pages/wallet/Transfer.jsx'
+import Convert from '@/pages/wallet/Convert.jsx'
+import History, { TransactionDetail } from '@/pages/wallet/History.jsx'
+import Market from '@/pages/market/Market.jsx'
+import RequestDetail from '@/pages/market/RequestDetail.jsx'
+import Portfolio from '@/pages/invest/Portfolio.jsx'
+import LoanDetail from '@/pages/invest/LoanDetail.jsx'
+import Business from '@/pages/business/Business.jsx'
+import NewRequest from '@/pages/business/NewRequest.jsx'
+import Profile from '@/pages/profile/Profile.jsx'
 
 export default function App() {
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <header className="sticky top-0 z-40 border-b bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3">
-          <span className="text-base font-semibold tracking-tight">
-            💱 Debt Tracker
-          </span>
-          <nav className="flex flex-wrap gap-1">
-            {navItems.map((item) => (
-              <NavLink key={item.to} to={item.to} className={linkClass}>
-                {item.label}
-              </NavLink>
-            ))}
-          </nav>
-        </div>
-      </header>
-
-      <main className="mx-auto max-w-5xl px-4 py-6">
+    <AuthProvider>
+      <ErrorBoundary>
         <Routes>
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/entry" element={<Entry />} />
-          <Route path="/history" element={<History />} />
-          <Route path="/people" element={<People />} />
-          <Route path="/people/:id" element={<PersonDetail />} />
-          <Route path="/currencies" element={<Currencies />} />
-          <Route path="/audit" element={<Audit />} />
+          <Route
+            path="/login"
+            element={
+              <PublicOnly>
+                <Login />
+              </PublicOnly>
+            }
+          />
+          <Route
+            path="/register"
+            element={
+              <PublicOnly>
+                <Register />
+              </PublicOnly>
+            }
+          />
+
+          {/* One session check for the whole app, at the shell. */}
+          <Route element={<RequireAuth />}>
+            <Route element={<AppShell />}>
+              <Route index element={<HomeRedirect />} />
+              <Route path="/wallet" element={<Wallet />} />
+              <Route path="/transfer" element={<Transfer />} />
+              <Route path="/convert" element={<Convert />} />
+              <Route path="/history" element={<History />} />
+              <Route path="/history/:id" element={<TransactionDetail />} />
+
+              {/* Capability routing is navigation only — the server enforces
+                  access on every endpoint regardless (PLATFORM_PLAN §8). */}
+              <Route element={<RequireCapability capability="invest" />}>
+                <Route path="/market" element={<Market />} />
+                <Route path="/portfolio" element={<Portfolio />} />
+              </Route>
+              <Route path="/market/:id" element={<RequestDetail />} />
+              <Route path="/loans/:id" element={<LoanDetail />} />
+
+              <Route element={<RequireCapability capability="borrow" />}>
+                <Route path="/business" element={<Business />} />
+                <Route path="/business/requests/new" element={<NewRequest />} />
+              </Route>
+
+              <Route path="/profile" element={<Profile />} />
+              <Route path="*" element={<NotFound />} />
+            </Route>
+          </Route>
         </Routes>
-      </main>
+      </ErrorBoundary>
+      <Toaster position="top-right" richColors />
+    </AuthProvider>
+  )
+}
+
+function RequireAuth() {
+  const { isAuthenticated, isLoading } = useAuth()
+  const location = useLocation()
+
+  if (isLoading) return <BootSkeleton />
+  if (!isAuthenticated) return <Navigate to="/login" state={{ from: location }} replace />
+  return <Outlet />
+}
+
+function PublicOnly({ children }) {
+  const { isAuthenticated, isLoading, user } = useAuth()
+  if (isLoading) return <BootSkeleton />
+  if (isAuthenticated) return <Navigate to={landingFor(user)} replace />
+  return children
+}
+
+function RequireCapability({ capability }) {
+  const { can, user } = useAuth()
+  if (!can(capability)) return <Navigate to={landingFor(user)} replace />
+  return <Outlet />
+}
+
+function HomeRedirect() {
+  const { user } = useAuth()
+  return <Navigate to={landingFor(user)} replace />
+}
+
+function BootSkeleton() {
+  return (
+    <div className="mx-auto max-w-5xl space-y-4 px-4 py-10">
+      <Skeleton className="h-10 w-48" />
+      <Skeleton className="h-32 w-full" />
+      <Skeleton className="h-64 w-full" />
+    </div>
+  )
+}
+
+function NotFound() {
+  return (
+    <div className="py-20 text-center">
+      <p className="text-5xl font-semibold tracking-tight text-muted-foreground">404</p>
+      <h1 className="mt-4 text-lg font-medium">Такої сторінки немає</h1>
+      <Button asChild className="mt-6">
+        <Link to="/wallet">На гаманець</Link>
+      </Button>
     </div>
   )
 }
