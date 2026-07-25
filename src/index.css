@@ -6,7 +6,9 @@
 :root {
   --radius: 0.625rem;
 
-  --background: oklch(1 0 0);
+  /* The page is a shade cooler than the cards it holds — with both at pure
+     white, every card edge disappeared and the layout read as one flat sheet. */
+  --background: oklch(0.979 0.004 264.5);
   --foreground: oklch(0.129 0.042 264.695);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.129 0.042 264.695);
@@ -24,9 +26,10 @@
   --destructive-foreground: oklch(0.984 0.003 247.858);
   --success: oklch(0.627 0.194 149.214);
   --success-foreground: oklch(0.984 0.003 247.858);
-  --border: oklch(0.929 0.013 255.508);
-  --input: oklch(0.929 0.013 255.508);
+  --border: oklch(0.916 0.013 255.508);
+  --input: oklch(0.916 0.013 255.508);
   --ring: oklch(0.511 0.262 276.966);
+  --shadow-card: 0 1px 2px oklch(0.129 0.042 264.695 / 6%);
 
   --chart-1: oklch(0.511 0.262 276.966);
   --chart-2: oklch(0.577 0.245 27.325);
@@ -36,9 +39,9 @@
 }
 
 .dark {
-  --background: oklch(0.129 0.042 264.695);
+  --background: oklch(0.155 0.032 264.695);
   --foreground: oklch(0.984 0.003 247.858);
-  --card: oklch(0.208 0.042 265.755);
+  --card: oklch(0.212 0.037 265.755);
   --card-foreground: oklch(0.984 0.003 247.858);
   --popover: oklch(0.208 0.042 265.755);
   --popover-foreground: oklch(0.984 0.003 247.858);
@@ -54,9 +57,10 @@
   --destructive-foreground: oklch(0.984 0.003 247.858);
   --success: oklch(0.696 0.17 149.214);
   --success-foreground: oklch(0.129 0.042 264.695);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
+  --border: oklch(1 0 0 / 12%);
+  --input: oklch(1 0 0 / 16%);
   --ring: oklch(0.673 0.182 276.935);
+  --shadow-card: 0 1px 2px oklch(0 0 0 / 30%);
 
   --chart-1: oklch(0.673 0.182 276.935);
   --chart-2: oklch(0.704 0.191 22.216);
@@ -116,5 +120,18 @@
     @apply bg-background text-foreground;
     font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto,
       Helvetica, Arial, sans-serif;
+    /* Numbers are the whole product: keep them monospaced-width everywhere
+       so columns of amounts line up without a monospace font. */
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Theme flips are applied to <html> before paint (see main.jsx); the
+     transition keeps the switch from looking like a page reload. */
+  html.theme-transition,
+  html.theme-transition * {
+    transition:
+      background-color 150ms ease,
+      border-color 150ms ease,
+      color 150ms ease;
   }
 }

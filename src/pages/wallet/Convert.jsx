@@ -212,6 +212,7 @@ function QuoteCard({ quote, onExpire, onRefresh, onConfirm, pending }) {
 
 function RateTable({ rates }) {
   if (!rates.length) return null
+  const sorted = [...rates].sort((a, b) => a.code.localeCompare(b.code))
   return (
     <div className="rounded-lg border">
       <table className="w-full text-sm">
@@ -223,7 +224,7 @@ function RateTable({ rates }) {
           </tr>
         </thead>
         <tbody>
-          {rates.map((rate) => (
+          {sorted.map((rate) => (
             <tr key={rate.code} className="border-b last:border-0">
               <td className="px-4 py-2 font-medium">
                 {rate.code}

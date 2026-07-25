@@ -92,8 +92,13 @@ export const compareAmount = (a, b) => {
 export const addAmounts = (...values) =>
   values.reduce((acc, v) => acc + BigInt(normalise(v)), 0n).toString()
 
-/** Basis points → "18%" / "0.5%". Rates are integers everywhere else. */
-export function formatBps(bps, { locale = 'uk-UA' } = {}) {
+/**
+ * Basis points → "18%" / "0.5%". Rates are integers everywhere else.
+ * A zero rate is a real case (an interest-free request), and "0%" next to a
+ * term reads like missing data — `zeroLabel` lets callers say what it means.
+ */
+export function formatBps(bps, { locale = 'uk-UA', zeroLabel } = {}) {
+  if (zeroLabel && Number(bps) === 0) return zeroLabel
   const percent = Number(bps) / 100
   return `${new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }).format(percent)}%`
 }

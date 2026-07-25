@@ -35,8 +35,10 @@ export function RequestCard({ request }) {
           <div className="flex items-baseline justify-between gap-3">
             <Amount value={request.amountTarget} currency={request.currency} size="lg" />
             <span className="text-lg font-semibold text-primary">
-              {formatBps(request.rateAnnualBps)}
-              <span className="ml-1 text-xs font-normal text-muted-foreground">річних</span>
+              {formatBps(request.rateAnnualBps, { zeroLabel: 'без %' })}
+              {request.rateAnnualBps > 0 && (
+                <span className="ml-1 text-xs font-normal text-muted-foreground">річних</span>
+              )}
             </span>
           </div>
 

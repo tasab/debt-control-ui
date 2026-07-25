@@ -46,6 +46,7 @@ export default function NewRequest() {
     },
   })
   const values = form.watch()
+  const hasAmount = !!values.amountTarget && BigInt(values.amountTarget || '0') > 0n
 
   // Full cost of the money, shown before publishing: rate × term, simple
   // interest — the same formula the server accrues with.
@@ -123,7 +124,7 @@ export default function NewRequest() {
                   id="ratePercent"
                   type="number"
                   step="0.25"
-                  min="0.01"
+                  min="0"
                   {...form.register('ratePercent')}
                 />
                 <FieldError message={form.formState.errors.ratePercent?.message} />
@@ -196,14 +197,16 @@ export default function NewRequest() {
               />
             </div>
 
-            {totalInterest > 0n && (
+            {hasAmount && (
               <div className="rounded-lg border p-4 text-sm">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Отримаєте</span>
                   <Amount value={values.amountTarget} currency={values.currency} />
                 </div>
                 <div className="mt-2 flex justify-between">
-                  <span className="text-muted-foreground">Заплатите відсотків за строк</span>
+                  <span className="text-muted-foreground">
+                    {totalInterest > 0n ? 'Заплатите відсотків за строк' : 'Відсотків немає'}
+                  </span>
                   <Amount value={totalInterest.toString()} currency={values.currency} />
                 </div>
                 <Separator className="my-3" />
@@ -215,7 +218,9 @@ export default function NewRequest() {
                   />
                 </div>
                 <p className="mt-2 text-xs text-muted-foreground">
-                  Орієнтовно. Відсотки нараховуються щодня за фактичний час користування.
+                  {totalInterest > 0n
+                    ? 'Орієнтовно. Відсотки нараховуються щодня за фактичний час користування.'
+                    : 'Безвідсоткова заявка — повернути потрібно рівно стільки, скільки отримали.'}
                 </p>
               </div>
             )}

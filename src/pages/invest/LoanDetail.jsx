@@ -36,7 +36,8 @@ export default function LoanDetail() {
             <div>
               <CardTitle className="text-xl">{loan.business?.name}</CardTitle>
               <p className="mt-1 text-sm text-muted-foreground">
-                {formatBps(loan.rateAnnualBps)} річних ·{' '}
+                {formatBps(loan.rateAnnualBps, { zeroLabel: 'Без відсотків' })}
+                {loan.rateAnnualBps > 0 ? ' річних' : ''} ·{' '}
                 {loan.repaymentType === 'bullet' ? 'тіло в кінці' : 'гнучке тіло'}
               </p>
             </div>

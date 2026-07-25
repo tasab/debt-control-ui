@@ -28,7 +28,9 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     setUnauthorizedHandler(() => {
       queryClient.setQueryData(keys.me, null)
-      queryClient.clear()
+      // Everything except the session itself: clearing the `me` entry would
+      // make it refetch immediately and 401 again, forever.
+      queryClient.removeQueries({ predicate: (query) => query.queryKey[0] !== 'me' })
       navigate('/login', { replace: true })
     })
   }, [queryClient, navigate])
@@ -52,7 +54,8 @@ export function AuthProvider({ children }) {
   const logout = useMutation({
     mutationFn: apis.auth.logout,
     onSettled: () => {
-      queryClient.clear()
+      queryClient.setQueryData(keys.me, null)
+      queryClient.removeQueries({ predicate: (query) => query.queryKey[0] !== 'me' })
       navigate('/login', { replace: true })
     },
   })

@@ -5,13 +5,11 @@ import { BrowserRouter } from 'react-router-dom'
 import './index.css'
 import App from './App.jsx'
 import { queryClient } from './lib/queryClient'
+import { ThemeProvider, applyTheme, readStoredTheme } from './lib/theme.jsx'
 
-// shadcn/ui theming is class-based (`.dark`), so mirror the OS colour scheme
-// onto <html> and keep it in sync if the user flips their system preference.
-const prefersDark = window.matchMedia('(prefers-color-scheme: dark)')
-const applyTheme = (dark) => document.documentElement.classList.toggle('dark', dark)
-applyTheme(prefersDark.matches)
-prefersDark.addEventListener('change', (event) => applyTheme(event.matches))
+// Applied before React mounts: on a dark setup the first paint is already dark,
+// with no white flash to blink through.
+applyTheme(readStoredTheme())
 
 async function start() {
   // MSW is opt-in (VITE_USE_MOCKS=1) so `npm run dev` always talks to the real
@@ -23,11 +21,13 @@ async function start() {
 
   createRoot(document.getElementById('root')).render(
     <StrictMode>
-      <QueryClientProvider client={queryClient}>
-        <BrowserRouter>
-          <App />
-        </BrowserRouter>
-      </QueryClientProvider>
+      <ThemeProvider>
+        <QueryClientProvider client={queryClient}>
+          <BrowserRouter>
+            <App />
+          </BrowserRouter>
+        </QueryClientProvider>
+      </ThemeProvider>
     </StrictMode>,
   )
 }

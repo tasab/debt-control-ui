@@ -46,7 +46,8 @@ export function MyLoans() {
                   <StatusBadge status={loan.status} />
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  {formatBps(loan.rateAnnualBps)} річних · до{' '}
+                  {formatBps(loan.rateAnnualBps, { zeroLabel: 'Без відсотків' })}
+                  {loan.rateAnnualBps > 0 ? ' річних' : ''} · до{' '}
                   {new Date(loan.maturesAt).toLocaleDateString('uk-UA')}
                 </p>
               </div>

@@ -20,6 +20,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { ThemeToggle } from './ThemeToggle.jsx'
 
 /**
  * Navigation is derived from capabilities (D7), not from a role: a user with
@@ -58,12 +59,12 @@ export function AppShell() {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <header className="sticky top-0 z-40 border-b bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3">
-          <NavLink to="/wallet" className="text-base font-semibold tracking-tight">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
+          <NavLink to="/wallet" className="shrink-0 text-base font-semibold tracking-tight">
             ₴ Debt Control
           </NavLink>
 
-          <nav className="flex flex-1 flex-wrap gap-1">
+          <nav className="flex min-w-0 flex-1 flex-wrap gap-1">
             {items.map((item) => (
               <NavLink key={item.to} to={item.to} className={linkClass}>
                 <item.icon className="size-4" aria-hidden />
@@ -72,10 +73,14 @@ export function AppShell() {
             ))}
           </nav>
 
+          <div className="ml-auto flex shrink-0 items-center gap-1">
+            <ThemeToggle />
+          </div>
+
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className="gap-2">
-                <span className="hidden max-w-40 truncate sm:inline">{user?.displayName}</span>
+              <Button variant="ghost" size="sm" className="shrink-0 gap-2">
+                <span className="hidden max-w-32 truncate sm:inline">{user?.displayName}</span>
                 {user?.rating && (
                   <Badge variant="secondary" className="font-mono">
                     {user.rating.grade}

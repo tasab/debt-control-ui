@@ -66,7 +66,7 @@ export default function Portfolio() {
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-semibold tracking-tight">
-              {formatBps(data.weightedRateBps)}
+              {formatBps(data.weightedRateBps, { zeroLabel: 'без відсотків' })}
             </p>
             <p className="mt-1 text-xs text-muted-foreground">
               Зважена за розміром вкладень
@@ -134,7 +134,8 @@ export default function Portfolio() {
                     <StatusBadge status={loan.status} />
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    {formatBps(loan.rateAnnualBps)} річних · до{' '}
+                    {formatBps(loan.rateAnnualBps, { zeroLabel: 'Без відсотків' })}
+                    {loan.rateAnnualBps > 0 ? ' річних' : ''} · до{' '}
                     {new Date(loan.maturesAt).toLocaleDateString('uk-UA')}
                   </p>
                 </div>

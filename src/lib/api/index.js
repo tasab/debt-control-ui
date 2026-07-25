@@ -8,7 +8,8 @@ export const auth = {
   register: (body) => api.post('/auth/register', body),
   login: (body) => api.post('/auth/login', body),
   logout: () => api.post('/auth/logout'),
-  me: () => api.get('/auth/me'),
+  // Returns null when signed out instead of throwing — see client.js.
+  me: () => api.get('/auth/me', undefined, { allowUnauthorized: true }),
   searchUsers: (q) => api.get('/users/search', { q }),
 }
 

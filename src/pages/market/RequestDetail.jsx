@@ -69,7 +69,14 @@ export default function RequestDetail() {
         <CardContent className="space-y-6">
           <div className="grid gap-4 sm:grid-cols-4">
             <Metric label="Потрібно" value={<Amount value={request.amountTarget} currency={request.currency} />} />
-            <Metric label="Ставка" value={`${formatBps(request.rateAnnualBps)} річних`} />
+            <Metric
+              label="Ставка"
+              value={
+                request.rateAnnualBps > 0
+                  ? `${formatBps(request.rateAnnualBps)} річних`
+                  : 'Без відсотків'
+              }
+            />
             <Metric label="Строк" value={`${request.termDays} днів`} />
             <Metric
               label="Погашення"

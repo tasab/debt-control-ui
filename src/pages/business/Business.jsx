@@ -1,3 +1,4 @@
+import { Fragment } from 'react'
 import { Link } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -97,9 +98,18 @@ function Dashboard() {
               currency={currency}
               colored
               hint={
-                data.startingCapital
-                  ? `Старт: ${data.startingCapital.amount} ${data.startingCapital.currency}`
-                  : 'Стартовий капітал не заданий'
+                data.startingCapital ? (
+                  <>
+                    Старт:{' '}
+                    <Amount
+                      value={data.startingCapital.amount}
+                      currency={data.startingCapital.currency}
+                      size="sm"
+                    />
+                  </>
+                ) : (
+                  'Стартовий капітал не заданий'
+                )
               }
             />
           </CardContent>
@@ -115,7 +125,7 @@ function Dashboard() {
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-semibold tracking-tight">
-              {formatBps(data.costOfCapitalBps)}
+              {formatBps(data.costOfCapitalBps, { zeroLabel: 'без відсотків' })}
             </p>
             <p className="mt-1 text-xs text-muted-foreground">
               Середньозважена ставка по {data.activeLoanCount} активних позиках
@@ -133,22 +143,28 @@ function Dashboard() {
             {data.byCurrency.length === 0 && (
               <p className="text-muted-foreground">Ще немає рухів коштів.</p>
             )}
-            {data.byCurrency.map((row) => (
-              <div key={row.currency} className="flex items-center justify-between gap-4">
-                <span className="font-medium">{row.currency}</span>
-                <span className="flex gap-4 text-muted-foreground">
-                  <span>
-                    Гаманці <Amount value={row.wallets} currency={row.currency} size="sm" showCurrency={false} />
-                  </span>
-                  <span>
-                    Каси <Amount value={row.registers} currency={row.currency} size="sm" showCurrency={false} />
-                  </span>
-                  <span>
-                    Борг <Amount value={row.debt} currency={row.currency} size="sm" showCurrency={false} />
-                  </span>
-                </span>
+            {data.byCurrency.length > 0 && (
+              <div className="grid grid-cols-[auto_1fr_1fr_1fr] gap-x-4 gap-y-1.5">
+                <span />
+                <span className="text-right text-xs text-muted-foreground">Гаманці</span>
+                <span className="text-right text-xs text-muted-foreground">Каси</span>
+                <span className="text-right text-xs text-muted-foreground">Борг</span>
+                {data.byCurrency.map((row) => (
+                  <Fragment key={row.currency}>
+                    <span className="font-medium">{row.currency}</span>
+                    <span className="text-right">
+                      <Amount value={row.wallets} currency={row.currency} size="sm" showCurrency={false} />
+                    </span>
+                    <span className="text-right">
+                      <Amount value={row.registers} currency={row.currency} size="sm" showCurrency={false} />
+                    </span>
+                    <span className="text-right">
+                      <Amount value={row.debt} currency={row.currency} size="sm" showCurrency={false} />
+                    </span>
+                  </Fragment>
+                ))}
               </div>
-            ))}
+            )}
           </CardContent>
         </Card>
       </div>

@@ -45,7 +45,8 @@ export const fundingRequestSchema = z.object({
   amountTarget: amountString,
   // Entered as a percentage, sent as basis points — the wire format is bps
   // everywhere so requests stay comparable (§6.4).
-  ratePercent: z.coerce.number().min(0.01, 'Вкажіть ставку').max(200),
+  // 0 is allowed: an interest-free request is valid (see SERVER_PLAN §2.3).
+  ratePercent: z.coerce.number().min(0, 'Ставка не може бути від’ємною').max(200),
   termDays: z.coerce.number().int().min(7, 'Мінімум 7 днів').max(3650),
   repaymentType: z.enum(['bullet', 'interest_only_flex']),
   minTicket: amountString,

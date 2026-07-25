@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 import { ArrowLeftRight, Repeat, Snowflake } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Amount } from '@/components/money/Amount'
 import { CardsSkeleton, ErrorState } from '@/components/layout/states'
 import { useSummary, useWallets } from '@/lib/hooks'
@@ -35,16 +35,30 @@ export default function Wallet() {
       {wallets.isLoading && <CardsSkeleton />}
       {wallets.isError && <ErrorState error={wallets.error} onRetry={wallets.refetch} />}
 
-      {wallets.data && (
+      {wallets.data && <WalletGrid wallets={wallets.data} />}
+
+      <TransactionsPreview />
+    </div>
+  )
+}
+
+/**
+ * Currencies the user actually holds come first and get a card each; the empty
+ * ones collapse into one quiet row. Five equally sized cards, three of them
+ * zero, made the funded balance harder to find, not easier.
+ */
+function WalletGrid({ wallets }) {
+  const funded = wallets.filter((w) => !isZero(w.total))
+  const empty = wallets.filter((w) => isZero(w.total))
+
+  return (
+    <div className="space-y-3">
+      {funded.length > 0 && (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {wallets.data.map((wallet) => (
+          {funded.map((wallet) => (
             <Card key={wallet.currency}>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">
-                  {wallet.currency}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
+              <CardContent className="space-y-1.5 py-5">
+                <p className="text-sm font-medium text-muted-foreground">{wallet.currency}</p>
                 <Amount
                   value={wallet.available}
                   currency={wallet.currency}
@@ -57,7 +71,12 @@ export default function Wallet() {
                   <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
                     <Snowflake className="size-3.5" aria-hidden />
                     Заморожено{' '}
-                    <Amount value={wallet.held} currency={wallet.currency} size="sm" showCurrency={false} />
+                    <Amount
+                      value={wallet.held}
+                      currency={wallet.currency}
+                      size="sm"
+                      showCurrency={false}
+                    />
                   </p>
                 )}
               </CardContent>
@@ -66,7 +85,16 @@ export default function Wallet() {
         </div>
       )}
 
-      <TransactionsPreview />
+      {empty.length > 0 && (
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-dashed px-4 py-3 text-sm text-muted-foreground">
+          <span>Порожні гаманці:</span>
+          {empty.map((wallet) => (
+            <span key={wallet.currency} className="font-medium">
+              {wallet.currency}
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

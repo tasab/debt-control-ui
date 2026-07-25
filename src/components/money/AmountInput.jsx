@@ -61,7 +61,14 @@ export function AmountInput({
           type="text"
           autoComplete="off"
           aria-invalid={message ? 'true' : undefined}
-          className={cn('pr-24 text-right tabular-nums', message && 'border-destructive', className)}
+          className={cn(
+            'text-right tabular-nums',
+            // Reserve exactly as much room as the suffix actually occupies:
+            // the currency code alone, or the code plus the "max" button.
+            onMax && max ? 'pr-32' : 'pr-14',
+            message && 'border-destructive',
+            className,
+          )}
         />
         <div className="absolute inset-y-0 right-3 flex items-center gap-2 text-sm text-muted-foreground">
           {onMax && max && (

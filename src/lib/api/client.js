@@ -23,7 +23,11 @@ export const setUnauthorizedHandler = (handler) => {
   onUnauthorized = handler
 }
 
-async function request(method, path, { body, params, headers = {}, raw = false } = {}) {
+async function request(
+  method,
+  path,
+  { body, params, headers = {}, raw = false, allowUnauthorized = false } = {},
+) {
   const url = new URL(`${BASE}${path}`, window.location.origin)
   for (const [key, value] of Object.entries(params ?? {})) {
     if (value !== undefined && value !== null && value !== '') url.searchParams.set(key, value)
@@ -45,6 +49,10 @@ async function request(method, path, { body, params, headers = {}, raw = false }
   })
 
   if (response.status === 401) {
+    // The session probe (`GET /auth/me`) asks a question whose answer may
+    // legitimately be "nobody" — it must not trigger the global sign-out, or
+    // the handler invalidates the probe, which refetches, which 401s again.
+    if (allowUnauthorized) return null
     onUnauthorized()
     throw new ApiError({ code: 'UNAUTHORIZED', message: 'Сесія завершилась' }, 401)
   }
@@ -65,7 +73,7 @@ async function request(method, path, { body, params, headers = {}, raw = false }
 }
 
 export const api = {
-  get: (path, params) => request('GET', path, { params }),
+  get: (path, params, options) => request('GET', path, { params, ...options }),
   post: (path, body, options) => request('POST', path, { body, ...options }),
   put: (path, body) => request('PUT', path, { body }),
   patch: (path, body) => request('PATCH', path, { body }),
