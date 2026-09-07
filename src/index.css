@@ -113,7 +113,16 @@
   body,
   #root {
     margin: 0;
-    min-height: 100vh;
+    /* 100dvh, а не 100vh: на мобільних Safari/Chrome адресний рядок ховається
+       й вилазить, і фіксована 100vh лишає під сторінкою порожню смугу. */
+    min-height: 100dvh;
+  }
+
+  html {
+    /* Поворот телефона в альбом інакше збільшує кегль сам по собі. */
+    -webkit-text-size-adjust: 100%;
+    /* Горизонталь ніде не прокручується — усе широке возить власний контейнер. */
+    overflow-x: hidden;
   }
 
   body {
@@ -123,6 +132,27 @@
     /* Numbers are the whole product: keep them monospaced-width everywhere
        so columns of amounts line up without a monospace font. */
     font-variant-numeric: tabular-nums;
+    /* Сіра «пляма» під пальцем на кожному тапі — головна ознака сайту, який
+       відкрили з телефона; прибираємо, стан натискання малюємо самі. */
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior-y: none;
+  }
+
+  /* 300 мс затримки кліку на тач-екранах прибирає саме це. */
+  button,
+  a,
+  label,
+  [role='button'],
+  [role='tab'] {
+    touch-action: manipulation;
+  }
+
+  /* Клавіатура на iOS перекриває поле, до якого доскролили — браузер сам
+     дотягне його до видимої частини лише з цим. */
+  input,
+  select,
+  textarea {
+    scroll-margin-block: 6rem;
   }
 
   /* Theme flips are applied to <html> before paint (see main.jsx); the
@@ -133,5 +163,56 @@
       background-color 150ms ease,
       border-color 150ms ease,
       color 150ms ease;
+  }
+}
+
+@layer utilities {
+  /* Безпечні зони iPhone. Використовуються там, де елемент притиснутий до
+     краю екрана: нижня навігація, липкі панелі дій, шапка. */
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  .pt-safe {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+
+  .px-safe {
+    padding-left: max(env(safe-area-inset-left, 0px), 0px);
+    padding-right: max(env(safe-area-inset-right, 0px), 0px);
+  }
+
+  /* Горизонтальні стрічки карток: возяться пальцем, але без сірої смуги
+     скролбара під ними — на телефоні її й так не видно, а на десктопі вона
+     ріже картку навпіл. */
+  .no-scrollbar {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Стрічка, що зупиняється рівно на картці, а не між ними. */
+  .snap-row {
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .snap-row > * {
+    scroll-snap-align: start;
+  }
+
+  /* Відгук на дотик там, де немає ховера: елемент трохи «сідає» під пальцем.
+     На мишачих екранах це не вмикається, тож клік лишається звичним. */
+  @media (hover: none) {
+    .tap {
+      transition: transform 120ms ease, background-color 120ms ease;
+    }
+
+    .tap:active {
+      transform: scale(0.975);
+    }
   }
 }
