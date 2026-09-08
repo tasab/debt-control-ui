@@ -14,7 +14,13 @@
 encode zstd gzip
 
 handle /api/* {
-	reverse_proxy {$API_UPSTREAM}
+	# Host переписується на адресу апстріму: якщо API_UPSTREAM — публічний домен
+	# (сервіси в різних проєктах), edge Railway маршрутизує саме за Host, і з
+	# доменом клієнта запит не знайшов би сервера. Для приватної мережі це
+	# нічого не змінює — Fastify на Host не дивиться.
+	reverse_proxy {$API_UPSTREAM} {
+		header_up Host {upstream_hostport}
+	}
 }
 
 handle {
