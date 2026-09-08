@@ -1,0 +1,11 @@
+# Статика збирається Node'ом, віддається Caddy — той самий контейнер, два кроки.
+providers = ["node"]
+
+[phases.setup]
+nixPkgs = ["nodejs", "caddy"]
+
+[phases.build]
+cmds = ["npm run build"]
+
+[start]
+cmd = "caddy run --config Caddyfile --adapter caddyfile"
