@@ -25,6 +25,7 @@ const TYPE_OPTIONS = [
   { value: 'fx', label: 'Обмін валюти' },
   { value: 'fee', label: 'Комісії' },
   { value: 'topup', label: 'Поповнення' },
+  { value: 'self_topup', label: 'Записано вами' },
   { value: 'adjustment', label: 'Коригування' },
   { value: 'funding_hold', label: 'Заморожування' },
   { value: 'repayment_in', label: 'Надходження за позиками' },

@@ -9,6 +9,7 @@ import { ActionTileLabel, actionTileClass } from '@/components/layout/ActionTile
 import { useSummary, useWallets } from '@/lib/hooks'
 import { isZero } from '@/lib/money'
 import { ShareBalanceDialog } from './ShareBalance.tsx'
+import { TopUpDialog } from './TopUp.tsx'
 import { Investments, PendingInvites } from './Investments.tsx'
 import { TransactionList } from './TransactionList.tsx'
 
@@ -100,23 +101,28 @@ function HeroSkeleton() {
 }
 
 /**
- * Три дії, заради яких відкривають гаманець.
+ * Дії, заради яких відкривають гаманець.
  *
- * Плитками, а не дрібними кнопками в шапці: на телефоні це 1/3 ширини й
+ * Плитками, а не дрібними кнопками в шапці: на телефоні це чверть ширини й
  * майже сантиметр висоти на кожну — промахнутися ніде. «Історія» тут тому,
  * що на неї єдину немає пункту в нижній панелі.
+ *
+ * «Записати» стоїть першим і не веде на сторінку: гроші в цьому додатку
+ * ніяк не заходять ззовні (D1), тож поки людина не впише, скільки в неї є,
+ * решта дій просто нічого не має, з чим працювати.
  */
 function QuickActions() {
   const actions = [
-    { to: '/transfer', label: 'Переказати', icon: ArrowLeftRight, primary: true },
+    { to: '/transfer', label: 'Переказати', icon: ArrowLeftRight },
     { to: '/convert', label: 'Обміняти', icon: Repeat },
     { to: '/history', label: 'Історія', icon: Receipt },
   ]
 
   return (
-    <div className="grid grid-cols-3 gap-2 sm:gap-3">
+    <div className="grid grid-cols-4 gap-2 sm:gap-3">
+      <TopUpDialog asTile />
       {actions.map((action) => (
-        <Link key={action.to} to={action.to} className={actionTileClass(action.primary)}>
+        <Link key={action.to} to={action.to} className={actionTileClass()}>
           <action.icon className="size-5" aria-hidden />
           <ActionTileLabel>{action.label}</ActionTileLabel>
         </Link>

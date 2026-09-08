@@ -23,6 +23,8 @@ export const wallets = {
 export const transfers = {
   create: (body, options) => api.post('/transfers', body, options),
   feePreview: (params) => api.get('/fees/preview', params),
+  // Своє поповнення: рахунок береться із сесії, чужий назвати нема як.
+  topUpSelf: (body, options) => api.post('/topups', body, options),
 }
 
 export const fx = {

@@ -3,6 +3,7 @@ import {
   ArrowDownLeft,
   ArrowUpRight,
   Banknote,
+  NotebookPen,
   Percent,
   Receipt,
   Repeat,
@@ -24,6 +25,9 @@ const TYPES = {
   fx: { label: 'Обмін валюти', icon: Repeat },
   fee: { label: 'Комісія', icon: Receipt },
   topup: { label: 'Поповнення', icon: Banknote },
+  // Підпис навмисно не «Поповнення»: у виписці має читатися, що суму вписав
+  // власник рахунку з голови, а не провів адміністратор.
+  self_topup: { label: 'Записано вами', icon: NotebookPen },
   funding_hold: { label: 'Заморожено під заявку', icon: Snowflake },
   funding_release: { label: 'Холд повернуто', icon: Undo2 },
   disbursement: { label: 'Видача позики', icon: Banknote },

@@ -103,6 +103,12 @@ export const useTransfer = () =>
     success: 'Переказ виконано',
   })
 
+/** Записати собі власні кошти — без адміністратора, у свій же гаманець. */
+export const useTopUpSelf = () =>
+  useMoneyMutation(({ body, key }) => apis.transfers.topUpSelf(body, keyOption(key)), {
+    success: 'Записано',
+  })
+
 // ─── FX ─────────────────────────────────────────────────────────────────────
 
 export const useRates = () =>
