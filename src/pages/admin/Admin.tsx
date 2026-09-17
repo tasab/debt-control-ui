@@ -15,6 +15,7 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { Textarea } from '@/components/ui/textarea'
+import { UserShareDialog } from '@/pages/wallet/ShareBalance'
 import {
   Select,
   SelectContent,
@@ -116,6 +117,7 @@ export default function Admin() {
                       {user.businessName}
                     </Badge>
                   )}
+                  <UserShareDialog user={user} />
                   <DeleteUserButton user={user} />
                 </div>
               </div>

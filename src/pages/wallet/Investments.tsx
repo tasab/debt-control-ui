@@ -137,7 +137,10 @@ function AcceptInvite({ membership }) {
   const decline = useDeclineInvite()
   const form = useForm({
     resolver: zodResolver(acceptInviteSchema),
-    defaultValues: { ratePercent: 0 },
+    // Порожньо, а не 0: інакше людина відкриває форму й починає з того, що
+    // стирає нуль. Порожнє поле схема так само читає як нуль (z.coerce),
+    // тобто «без відсотків» лишається відповіддю за замовчуванням.
+    defaultValues: { ratePercent: '' },
   })
 
   const onSubmit = form.handleSubmit(async (values) => {
@@ -176,6 +179,7 @@ function AcceptInvite({ membership }) {
           inputMode="decimal"
           step="0.01"
           min="0"
+          placeholder="0"
           {...form.register('ratePercent')}
         />
       </div>

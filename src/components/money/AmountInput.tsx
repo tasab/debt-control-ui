@@ -64,7 +64,10 @@ export function AmountInput({
           id={id}
           value={text}
           onChange={handle}
-          placeholder={placeholder ?? (whole ? '0' : '0.00')}
+          // Порожнє поле лишається порожнім. «0.00» у плейсхолдері читається
+          // як уже введена сума, і людина починає з того, що стирає нулі —
+          // яких насправді немає.
+          placeholder={placeholder}
           autoFocus={autoFocus}
           // `decimal` gives phones a keypad with a separator, `text` keeps
           // pasted values like "1 000,50" intact.

@@ -90,9 +90,17 @@ export const admin = {
  */
 export const shares = {
   list: () => api.get('/shares'),
-  create: (body) => api.post('/shares', body),
+  // Полів для заповнення немає — поділитися це один дотик. Порожній обʼєкт, а
+  // не відсутнє тіло: Fastify відхиляє порожній body, якщо заголовок усе ж
+  // каже JSON, і покладатися тут на те, що його ніхто не виставить, не варто.
+  create: () => api.post('/shares', {}),
   revoke: (id) => api.del(`/shares/${id}`),
   view: (token) => api.get(`/shares/${token}/balance`, undefined, { allowUnauthorized: true }),
+
+  // Те саме для чужого балансу — з адмінки.
+  listFor: (userId) => api.get(`/admin/users/${userId}/shares`),
+  createFor: (userId) => api.post(`/admin/users/${userId}/shares`, {}),
+  revokeFor: (userId, id) => api.del(`/admin/users/${userId}/shares/${id}`),
 }
 
 export const stats = {

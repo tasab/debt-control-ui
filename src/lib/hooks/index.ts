@@ -28,6 +28,7 @@ export const keys = {
   adminAdjustments: (id) => ['admin', 'adjustments', id],
   shares: ['shares'],
   share: (token) => ['share', token],
+  userShares: (id) => ['shares', 'user', id],
 }
 
 /** Anything that moved money invalidates all of it — cheap and never stale. */
@@ -275,7 +276,7 @@ export const useBalanceHistory = (params = {}) =>
 export const useShares = () => useQuery({ queryKey: keys.shares, queryFn: apis.shares.list })
 
 export const useCreateShare = () =>
-  useMoneyMutation((body) => apis.shares.create(body), {
+  useMoneyMutation(() => apis.shares.create(), {
     success: 'Посилання створено',
     money: false,
     invalidate: [keys.shares],
@@ -286,6 +287,29 @@ export const useRevokeShare = () =>
     success: 'Посилання відкликано',
     money: false,
     invalidate: [keys.shares],
+  })
+
+// ─── Те саме для чужого балансу, з адмінки ──────────────────────────────────
+
+export const useUserShares = (userId, enabled = true) =>
+  useQuery({
+    queryKey: keys.userShares(userId),
+    queryFn: () => apis.shares.listFor(userId),
+    enabled: !!userId && enabled,
+  })
+
+export const useCreateUserShare = (userId) =>
+  useMoneyMutation(() => apis.shares.createFor(userId), {
+    success: 'Посилання створено',
+    money: false,
+    invalidate: [keys.userShares(userId)],
+  })
+
+export const useRevokeUserShare = (userId) =>
+  useMoneyMutation((id) => apis.shares.revokeFor(userId, id), {
+    success: 'Посилання відкликано',
+    money: false,
+    invalidate: [keys.userShares(userId)],
   })
 
 /**

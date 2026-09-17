@@ -10,48 +10,107 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { EmptyState, RowsSkeleton } from '@/components/layout/states'
 import { useConfirm } from '@/components/layout/Confirm'
 import { cn } from '@/lib/utils'
-import { useCreateShare, useRevokeShare, useShares } from '@/lib/hooks'
+import {
+  useCreateShare,
+  useCreateUserShare,
+  useRevokeShare,
+  useRevokeUserShare,
+  useShares,
+  useUserShares,
+} from '@/lib/hooks'
 
 /**
- * Посилання, яким людина показує свій баланс комусь ззовні.
+ * Посилання, яким людина показує баланс комусь ззовні.
  *
  * Посилань може бути кілька, і кожне відкликається окремо: одне видане банку
  * живе своїм життям, і скасовувати його разом із тим, що дали партнеру, —
  * причина не давати нікому жодного.
+ *
+ * Створення — без жодного поля. Тут колись був підпис «для себе», але
+ * заповнювати його щоразу заради того, щоб поділитися балансом, — робота,
+ * якої ніхто не просив.
  */
 export function ShareBalanceDialog() {
-  const [open, setOpen] = useState(false)
   const shares = useShares()
   const create = useCreateShare()
-  const [label, setLabel] = useState('')
-
-  const active = (shares.data ?? []).filter((share) => !share.revokedAt)
-
-  const submit = async (event) => {
-    event.preventDefault()
-    await create.mutateAsync({ label: label.trim() || undefined })
-    setLabel('')
-  }
+  const revoke = useRevokeShare()
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
+    <ShareDialog
+      trigger={
         <Button variant="outline" size="sm" className="gap-1.5">
           <Share2 className="size-4" aria-hidden />
           Поділитись
         </Button>
-      </DialogTrigger>
+      }
+      title="Поділитись балансом"
+      description="Хто відкриє посилання, побачить ваше ім’я, чисту вартість і з чого вона складається. Ні історії, ні пошти, ні можливості щось зробити з коштами."
+      shares={shares}
+      create={create}
+      revoke={revoke}
+    />
+  )
+}
+
+/**
+ * Те саме з адмінки, для чужого балансу.
+ *
+ * Посилання належить тому, чий це баланс: воно з’являється в його власному
+ * списку з позначкою, хто його створив, і він може його відкликати сам.
+ */
+export function UserShareDialog({ user }) {
+  const [open, setOpen] = useState(false)
+  // Список тягнеться лише коли діалог відкрили: інакше сторінка адміна робила
+  // б по запиту на кожного користувача в списку одразу після завантаження.
+  const shares = useUserShares(user.id, open)
+  const create = useCreateUserShare(user.id)
+  const revoke = useRevokeUserShare(user.id)
+
+  return (
+    <ShareDialog
+      open={open}
+      onOpenChange={setOpen}
+      trigger={
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-8 text-muted-foreground"
+          aria-label={`Поділитись балансом ${user.displayName}`}
+        >
+          <Share2 className="size-4" aria-hidden />
+        </Button>
+      }
+      title={`Баланс: ${user.displayName}`}
+      description="Посилання побачить ім’я, чисту вартість і з чого вона складається. Воно з’явиться і в списку самої людини — вона зможе його відкликати."
+      shares={shares}
+      create={create}
+      revoke={revoke}
+    />
+  )
+}
+
+function ShareDialog({
+  trigger,
+  title,
+  description,
+  shares,
+  create,
+  revoke,
+  open,
+  onOpenChange,
+}) {
+  const active = (shares.data ?? []).filter((share) => !share.revokedAt)
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogTrigger asChild>{trigger}</DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Поділитись балансом</DialogTitle>
-          <DialogDescription>
-            Хто відкриє посилання, побачить ваше ім’я, чисту вартість і залишки по валютах.
-            Ні історії, ні пошти, ні можливості щось зробити з коштами.
-          </DialogDescription>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
 
         {shares.isLoading && <RowsSkeleton rows={2} />}
@@ -68,37 +127,27 @@ export function ShareBalanceDialog() {
         {active.length > 0 && (
           <ul className="space-y-2">
             {active.map((share) => (
-              <ShareRow key={share.id} share={share} />
+              <ShareRow key={share.id} share={share} revoke={revoke} />
             ))}
           </ul>
         )}
 
-        <form onSubmit={submit} className="space-y-2 border-t pt-4">
-          <Label htmlFor="share-label">Підпис (для себе)</Label>
-          <div className="flex gap-2">
-            <Input
-              id="share-label"
-              value={label}
-              maxLength={60}
-              placeholder="напр. для банку"
-              onChange={(event) => setLabel(event.target.value)}
-            />
-            <Button type="submit" className="shrink-0" disabled={create.isPending}>
-              <Plus className="size-4" aria-hidden />
-              {create.isPending ? 'Створюємо…' : 'Створити'}
-            </Button>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Підпис бачите тільки ви — він допомагає згадати, кому яке посилання дали.
-          </p>
-        </form>
+        <Button
+          type="button"
+          size="lg"
+          className="w-full"
+          disabled={create.isPending}
+          onClick={() => create.mutate()}
+        >
+          <Plus className="size-4" aria-hidden />
+          {create.isPending ? 'Створюємо…' : 'Створити посилання'}
+        </Button>
       </DialogContent>
     </Dialog>
   )
 }
 
-function ShareRow({ share }) {
-  const revoke = useRevokeShare()
+function ShareRow({ share, revoke }) {
   const confirm = useConfirm()
   const [copied, setCopied] = useState(false)
   const url = `${window.location.origin}/share/${share.token}`
@@ -109,10 +158,10 @@ function ShareRow({ share }) {
    * телефоні, старий браузер), і тоді лишається поле, з якого можна виділити
    * посилання руками.
    */
-  const share_ = async () => {
+  const send = async () => {
     if (navigator.share) {
       try {
-        await navigator.share({ title: 'Мій баланс', url })
+        await navigator.share({ title: 'Баланс', url })
         return
       } catch {
         // Скасували системне вікно — це не помилка, просто копіюємо.
@@ -131,11 +180,16 @@ function ShareRow({ share }) {
     <li className="rounded-lg border p-3">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <p className="truncate text-sm font-medium">{share.label ?? 'Без підпису'}</p>
+          <p className="truncate text-sm font-medium">
+            {new Date(share.createdAt).toLocaleDateString('uk-UA')}
+          </p>
           <p className="text-xs text-muted-foreground">
             {share.viewCount > 0
               ? `Відкривали ${share.viewCount} ${plural(share.viewCount)}`
               : 'Ще не відкривали'}
+            {/* Видно лише коли посилання зробив не сам власник — інакше це
+                підпис «створив я» у власному ж списку. */}
+            {share.createdByName ? ` · створив ${share.createdByName}` : ''}
           </p>
         </div>
         <button
@@ -146,7 +200,7 @@ function ShareRow({ share }) {
             const ok = await confirm({
               title: 'Відкликати це посилання?',
               description:
-                'Воно перестане відкриватися для всіх, кому ви його дали. Решта посилань працюватимуть далі.',
+                'Воно перестане відкриватися для всіх, кому його дали. Решта посилань працюватимуть далі.',
               confirmLabel: 'Відкликати',
               destructive: true,
             })
@@ -171,7 +225,7 @@ function ShareRow({ share }) {
           variant="outline"
           size="sm"
           className={cn('h-9 shrink-0', copied && 'text-success')}
-          onClick={share_}
+          onClick={send}
         >
           {copied ? <Check className="size-4" aria-hidden /> : <Copy className="size-4" aria-hidden />}
           {copied ? 'Готово' : 'Копіювати'}
