@@ -64,8 +64,12 @@ function Balance({ data }) {
           </p>
         </div>
 
+        {/* Розклад суми. Без нього людина, яка віддала все в бізнес, бачить
+            велике число й порожнечу під ним — і не розуміє, звідки воно. */}
+        <Breakdown data={data} />
+
         {data.wallets.length > 0 && (
-          <ul className="divide-y">
+          <ul className="divide-y border-t">
             {data.wallets.map((wallet) => (
               <li
                 key={wallet.currency}
@@ -92,6 +96,41 @@ function Balance({ data }) {
         Тільки перегляд · станом на {new Date(data.generatedAt).toLocaleString('uk-UA')}
       </p>
     </>
+  )
+}
+
+/**
+ * З чого складається чиста вартість.
+ *
+ * Рядки з нулем не друкуються: у того, хто тримає все на гаманці, «вкладено
+ * 0» — зайвий рядок, а не інформація. Заборгованість показується завжди, коли
+ * вона є, бо вона зменшує підсумок, і без неї число не сходилося б.
+ */
+function Breakdown({ data }) {
+  const rows = [
+    { label: 'На гаманцях', value: data.onWallets },
+    { label: 'У бізнесі', value: data.invested },
+    { label: 'Заборгованість', value: data.borrowed, negative: true },
+  ].filter((row) => row.value && row.value !== '0')
+
+  if (rows.length === 0) return null
+
+  return (
+    <ul className="divide-y">
+      {rows.map((row) => (
+        <li key={row.label} className="flex items-center justify-between gap-3 px-5 py-3">
+          <span className="text-sm text-muted-foreground">{row.label}</span>
+          <Amount
+            value={row.negative ? `-${row.value}` : row.value}
+            currency={data.baseCurrency}
+            whole
+            showCurrency={false}
+            colored={row.negative}
+            className="font-medium"
+          />
+        </li>
+      ))}
+    </ul>
   )
 }
 
