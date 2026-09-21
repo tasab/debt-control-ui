@@ -423,13 +423,51 @@ function Dashboard() {
           {data.byCurrency.length === 0 && (
             <p className="text-muted-foreground">Ще немає рухів коштів.</p>
           )}
+          {/* Суми лишаються у своїй валюті: перемикач угорі міняє валюту
+              підсумків, а не цієї таблиці — тут видно, що саме лежить.
+
+              На телефоні кожна валюта — окремий блок, а не рядок таблиці.
+              Таблиця з п’яти колонок не стискається до ширини екрана, і
+              єдиний спосіб її там показати — власне вікно прокрутки вбік;
+              саме воно на iOS відкидало сторінку назад до цієї секції при
+              скролі вгору. Блоки нічого вбік не возять — і відкидати
+              більше нема чому. */}
           {data.byCurrency.length > 0 && (
-            // Суми лишаються у своїй валюті: перемикач угорі міняє валюту
-            // підсумків, а не цієї таблиці — тут видно, що саме лежить.
-            //
-            // П’ять колонок цифр не стискаються до ширини телефона без того,
-            // щоб суми злиплися — тому таблиця возиться вбік у своєму вікні.
-            <div className="no-scrollbar -mx-4 overflow-x-auto px-4">
+            <div className="space-y-2 sm:hidden">
+              {data.byCurrency.map((row) => {
+                const parts = [
+                  { label: 'Каси', value: row.registers },
+                  { label: 'Готівка', value: row.cash },
+                  { label: 'Гаманці', value: row.wallets },
+                  { label: 'Борг', value: row.debt },
+                ].filter((part) => part.value !== '0')
+
+                return (
+                  <div key={row.currency} className="rounded-lg border p-3">
+                    <p className="font-medium">{row.currency}</p>
+                    <dl className="mt-1.5 grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                      {parts.map((part) => (
+                        <div key={part.label} className="flex items-baseline justify-between gap-2">
+                          <dt className="text-muted-foreground">{part.label}</dt>
+                          <dd>
+                            <Amount
+                              value={part.value}
+                              currency={row.currency}
+                              size="sm"
+                              showCurrency={false}
+                            />
+                          </dd>
+                        </div>
+                      ))}
+                    </dl>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          {data.byCurrency.length > 0 && (
+            <div className="no-scrollbar -mx-4 hidden overflow-x-auto overscroll-x-contain px-4 sm:block">
             <div className="grid min-w-[26rem] grid-cols-[auto_1fr_1fr_1fr_1fr] gap-x-4 gap-y-1.5">
               <span />
               <span className="text-right text-xs text-muted-foreground">Каси</span>

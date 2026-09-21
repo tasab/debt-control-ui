@@ -79,7 +79,7 @@ function Hero({ summary }) {
       </div>
 
       {items.length > 0 && (
-        <ul className="no-scrollbar snap-row flex gap-6 overflow-x-auto px-5 py-4">
+        <ul className="no-scrollbar snap-row flex gap-6 overflow-x-auto overscroll-x-contain px-5 py-4">
           {items.map((item) => (
             <li key={item.label} className="shrink-0">
               <p className="text-xs text-muted-foreground">{item.label}</p>

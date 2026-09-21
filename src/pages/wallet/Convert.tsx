@@ -237,7 +237,7 @@ function RateTable({ rates }) {
   return (
     // Таблиця курсів возиться вбік у власному контейнері: три колонки цифр
     // на 360 px не стискаються без того, щоб склеїти суми між собою.
-    <div className="overflow-x-auto rounded-lg border">
+    <div className="overflow-x-auto overscroll-x-contain rounded-lg border">
       <table className="w-full min-w-[20rem] text-sm">
         <thead className="text-muted-foreground">
           <tr className="border-b">
