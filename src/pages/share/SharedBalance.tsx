@@ -49,6 +49,11 @@ export default function SharedBalance() {
 }
 
 function Balance({ data }) {
+  // Сервер уже дав розклад по валютах; старий список гаманців лишається в
+  // відповіді для сумісності, але сторінці він більше не потрібен.
+  const rows = data.byCurrency ?? []
+  const converted = rows.some((row) => row.currency !== data.baseCurrency)
+
   return (
     <>
       <section className="overflow-hidden rounded-2xl border bg-card shadow-sm">
@@ -62,33 +67,18 @@ function Balance({ data }) {
               className="text-3xl font-semibold tracking-tight sm:text-4xl"
             />
           </p>
+          {/* Підсумок звести можна лише в одній валюті — і тоді про курс треба
+              сказати вголос, бо самі гроші лежать не в ній. */}
+          {converted && (
+            <p className="mt-1 text-xs text-muted-foreground">
+              Усе разом у {data.baseCurrency} за поточним курсом
+            </p>
+          )}
         </div>
 
         {/* Розклад суми. Без нього людина, яка віддала все в бізнес, бачить
             велике число й порожнечу під ним — і не розуміє, звідки воно. */}
-        <Breakdown data={data} />
-
-        {data.wallets.length > 0 && (
-          <ul className="divide-y border-t">
-            {data.wallets.map((wallet) => (
-              <li
-                key={wallet.currency}
-                className="flex items-center justify-between gap-3 px-5 py-3"
-              >
-                <span className="flex items-center gap-2 text-sm font-medium">
-                  <Flag code={wallet.currency} />
-                  {wallet.currency}
-                </span>
-                <Amount
-                  value={wallet.available}
-                  currency={wallet.currency}
-                  showCurrency={false}
-                  className="font-medium"
-                />
-              </li>
-            ))}
-          </ul>
-        )}
+        <Breakdown rows={rows} />
       </section>
 
       <p className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
@@ -100,36 +90,62 @@ function Balance({ data }) {
 }
 
 /**
- * З чого складається чиста вартість.
+ * З чого складається чиста вартість — у валютах, а не в перерахунку.
  *
- * Рядки з нулем не друкуються: у того, хто тримає все на гаманці, «вкладено
- * 0» — зайвий рядок, а не інформація. Заборгованість показується завжди, коли
- * вона є, бо вона зменшує підсумок, і без неї число не сходилося б.
+ * Гроші лежать у тих валютах, у яких лежать, і «скільки там доларів» — саме
+ * те питання, заради якого посилання й відкривають; зведена гривня на нього
+ * не відповідає.
+ *
+ * Під кожним рядком сказано, де ці гроші: на гаманці, у бізнесі чи це борг
+ * перед учасниками. Частини друкуються лише тоді, коли їх більше однієї —
+ * інакше рядок просто повторював би сам себе.
  */
-function Breakdown({ data }) {
-  const rows = [
-    { label: 'На гаманцях', value: data.onWallets },
-    { label: 'У бізнесі', value: data.invested },
-    { label: 'Заборгованість', value: data.borrowed, negative: true },
-  ].filter((row) => row.value && row.value !== '0')
-
+function Breakdown({ rows }) {
   if (rows.length === 0) return null
 
   return (
     <ul className="divide-y">
-      {rows.map((row) => (
-        <li key={row.label} className="flex items-center justify-between gap-3 px-5 py-3">
-          <span className="text-sm text-muted-foreground">{row.label}</span>
-          <Amount
-            value={row.negative ? `-${row.value}` : row.value}
-            currency={data.baseCurrency}
-            whole
-            showCurrency={false}
-            colored={row.negative}
-            className="font-medium"
-          />
-        </li>
-      ))}
+      {rows.map((row) => {
+        const parts = [
+          { label: 'на гаманці', value: row.wallets },
+          { label: 'у бізнесі', value: row.invested },
+          { label: 'борг перед учасниками', value: row.borrowed, negative: true },
+        ].filter((part) => part.value && part.value !== '0')
+
+        return (
+          <li key={row.currency} className="flex items-start justify-between gap-3 px-5 py-3">
+            <div className="min-w-0">
+              <span className="flex items-center gap-2 text-sm font-medium">
+                <Flag code={row.currency} />
+                {row.currency}
+              </span>
+              {parts.length > 1 && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {parts.map((part, index) => (
+                    <span key={part.label}>
+                      {index > 0 && ' · '}
+                      {part.label}{' '}
+                      <Amount
+                        value={part.negative ? `-${part.value}` : part.value}
+                        currency={row.currency}
+                        size="sm"
+                        showCurrency={false}
+                      />
+                    </span>
+                  ))}
+                </p>
+              )}
+            </div>
+            <Amount
+              value={row.total}
+              currency={row.currency}
+              showCurrency={false}
+              colored={row.total.startsWith('-')}
+              className="shrink-0 font-medium"
+            />
+          </li>
+        )
+      })}
     </ul>
   )
 }
