@@ -1,5 +1,8 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import {
+  ChevronRight,
+  Coins,
   Minus,
   Plus,
   Search,
@@ -30,7 +33,7 @@ import { EmptyState, ErrorState, RowsSkeleton } from '@/components/layout/states
 import { FieldError } from '@/pages/auth/Login'
 import { useConfirm } from '@/components/layout/Confirm'
 import { formatAmount } from '@/lib/money'
-import { Rates } from './Rates.tsx'
+import { cn } from '@/lib/utils'
 import {
   useAdjustBalance,
   useAdminAdjustments,
@@ -69,32 +72,92 @@ const MODES = {
 }
 
 /**
- * Гроші учасника одним списком.
+ * Гроші учасника одним рядком на валюту.
  *
  * Для адміна немає різниці, де саме лежить сума — на гаманці чи в боргу
- * бізнесу перед людиною: правиться вона однаково. Тому окремого блоку «У
- * бізнесі» немає, а рядок лише підписаний назвою бізнесу.
+ * бізнесу перед людиною: правиться вона однаково. Тому USD із бізнесу й USD
+ * із гаманця більше не стоять двома рядками з однаковим підписом, а складені
+ * в одне число.
+ *
+ * Правка все одно має кудись лягти, і ціль — те місце, де гроші справді
+ * лежать: борг бізнесу, якщо він є (туди ж піде й будь-яке поповнення —
+ * сервер зметає кошти учасника в бізнес), інакше гаманець. Коли сума
+ * розкладена на дві частини, рядок каже про це вголос — інакше «Було» в
+ * діалозі не сходилося б із числом у списку.
  */
-const balanceRows = (user) => [
-  ...(user.wallets ?? []).map((wallet) => ({
-    key: `wallet:${wallet.currency}`,
-    currency: wallet.currency,
-    available: wallet.available,
-    held: wallet.held,
-  })),
-  ...(user.invested ?? []).map((row) => ({
-    key: `member:${row.memberId}:${row.currency}`,
-    currency: row.currency,
-    available: row.amount,
-    held: '0',
-    memberId: row.memberId,
-    businessName: row.businessName,
-  })),
-]
+const balanceRows = (user) => {
+  const rows = new Map()
+  const row = (currency) => {
+    if (!rows.has(currency)) {
+      rows.set(currency, {
+        key: currency,
+        currency,
+        total: 0n,
+        held: 0n,
+        wallet: 0n,
+        claims: [],
+      })
+    }
+    return rows.get(currency)
+  }
+
+  for (const wallet of user.wallets ?? []) {
+    const item = row(wallet.currency)
+    item.wallet = BigInt(wallet.available)
+    item.held = BigInt(wallet.held)
+    item.total += item.wallet
+  }
+
+  for (const claim of user.invested ?? []) {
+    const item = row(claim.currency)
+    item.claims.push({
+      memberId: claim.memberId,
+      businessName: claim.businessName,
+      amount: BigInt(claim.amount),
+    })
+    item.total += BigInt(claim.amount)
+  }
+
+  return [...rows.values()].map((item) => {
+    // Найбільший борг бізнесу — найімовірніше те саме місце, яке адмін і мав
+    // на увазі; за його відсутності правиться гаманець.
+    const target = [...item.claims].sort((a, b) => (b.amount > a.amount ? 1 : -1))[0]
+    const parts = [
+      { label: 'гаманець', amount: item.wallet },
+      ...item.claims.map((claim) => ({ label: `«${claim.businessName}»`, amount: claim.amount })),
+    ].filter((part) => part.amount !== 0n)
+
+    return {
+      key: item.key,
+      currency: item.currency,
+      available: item.total.toString(),
+      held: item.held.toString(),
+      // Ціль правки — об’єкт того ж вигляду, що й раніше: діалог про склад
+      // рядка нічого не знає й працює з одним рахунком.
+      target: target
+        ? {
+            currency: item.currency,
+            available: target.amount.toString(),
+            held: '0',
+            memberId: target.memberId,
+            businessName: target.businessName,
+          }
+        : {
+            currency: item.currency,
+            available: item.wallet.toString(),
+            held: item.held.toString(),
+          },
+      split: parts.length > 1 ? parts : null,
+    }
+  })
+}
 
 export default function Admin() {
   const [search, setSearch] = useState('')
   const users = useAdminUsers(search)
+  // Розгорнутий учасник — один: відкритих карток більше однієї не буває, бо
+  // правлять завжди чийсь один рахунок.
+  const [openId, setOpenId] = useState(null)
   // Яку валюту якого учасника зараз редагуємо і якою дією — null, поки діалог
   // закритий.
   const [editing, setEditing] = useState<{
@@ -114,9 +177,15 @@ export default function Admin() {
           Правка балансу проводиться через журнал: користувач бачить її у своїй виписці, а сума
           лишається збалансованою. Заморожені кошти редагувати не можна.
         </p>
+        {/* Курси живуть на своїй сторінці: їх правлять раз на день, а сюди
+            заходять щоразу, коли треба знайти чийсь рахунок. */}
+        <Button asChild variant="outline" size="sm" className="mt-1">
+          <Link to="/rates">
+            <Coins className="size-3.5" aria-hidden />
+            Курси валют
+          </Link>
+        </Button>
       </div>
-
-      <Rates />
 
       <div className="relative">
         <Search
@@ -141,102 +210,149 @@ export default function Admin() {
         />
       )}
 
+      {/* Список учасників — акордеон: на екран їх десятки, і розгорнуті
+          баланси всіх одразу перетворювали сторінку на кілометр рядків, серед
+          яких і треба було шукати потрібний. Коли пошук лишив одного — він
+          розгорнутий сам: іншого кандидата все одно немає. */}
       <div className="space-y-3">
-        {users.data?.items?.map((user) => (
-          <Card key={user.id}>
-            <CardHeader className="pb-3">
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <CardTitle className="truncate text-base">{user.displayName}</CardTitle>
-                  <CardDescription className="truncate">{user.email}</CardDescription>
-                </div>
-                <div className="flex flex-wrap items-center gap-1.5">
-                  {user.isAdmin && <Badge variant="secondary">адмін</Badge>}
-                  {user.capabilities?.map((capability) => (
-                    <Badge key={capability} variant="outline">
-                      {capability === 'invest' ? 'інвестор' : 'бізнес'}
-                    </Badge>
-                  ))}
-                  {user.businessName && (
-                    <Badge variant="outline" className="max-w-40 truncate">
-                      {user.businessName}
-                    </Badge>
-                  )}
-                  <UserShareDialog user={user} />
-                  <DeleteUserButton user={user} />
-                </div>
-              </div>
-            </CardHeader>
+        {users.data?.items?.map((user) => {
+          const items = users.data.items
+          const open = openId ? openId === user.id : items.length === 1
+          // Згорнута картка — це сам рядок: відступ під ним читався б як
+          // порожній блок, у якому щось мало бути.
 
-            <CardContent>
-              <ul className="divide-y">
-                {balanceRows(user).map((row) => (
-                  <li
-                    key={row.key}
-                    className="flex flex-wrap items-center justify-between gap-3 py-2.5"
+          return (
+            <Card key={user.id} className={cn(!open && 'py-4')}>
+              <CardHeader className={cn(open && 'pb-3')}>
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <button
+                    type="button"
+                    className="tap -m-1 flex min-w-0 flex-1 items-start gap-2 rounded-md p-1 text-left"
+                    aria-expanded={open}
+                    onClick={() => setOpenId(open ? '' : user.id)}
                   >
-                    <span className="flex min-w-12 items-baseline gap-2 text-sm">
-                      <span className="font-mono text-muted-foreground">{row.currency}</span>
-                      {row.businessName && (
-                        <span className="truncate text-muted-foreground">{row.businessName}</span>
+                    <ChevronRight
+                      className={cn(
+                        'mt-0.5 size-4 shrink-0 text-muted-foreground transition-transform',
+                        open && 'rotate-90',
                       )}
+                      aria-hidden
+                    />
+                    <span className="min-w-0">
+                      <CardTitle className="truncate text-base">{user.displayName}</CardTitle>
+                      <CardDescription className="truncate">{user.email}</CardDescription>
                     </span>
-                    <div className="flex flex-1 flex-wrap items-center justify-end gap-x-6 gap-y-1">
-                      <Amount value={row.available} currency={row.currency} />
-                      {BigInt(row.held) > 0n && (
-                        <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                          <Snowflake className="size-3.5" aria-hidden />
-                          заморожено{' '}
-                          <Amount
-                            value={row.held}
-                            currency={row.currency}
-                            size="sm"
-                            showCurrency={false}
-                          />
+                  </button>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {user.isAdmin && <Badge variant="secondary">адмін</Badge>}
+                    {user.capabilities?.map((capability) => (
+                      <Badge key={capability} variant="outline">
+                        {capability === 'invest' ? 'інвестор' : 'бізнес'}
+                      </Badge>
+                    ))}
+                    {user.businessName && (
+                      <Badge variant="outline" className="max-w-40 truncate">
+                        {user.businessName}
+                      </Badge>
+                    )}
+                    <UserShareDialog user={user} />
+                    <DeleteUserButton user={user} />
+                  </div>
+                </div>
+              </CardHeader>
+
+              {open && (
+                <CardContent>
+                  <ul className="divide-y">
+                    {balanceRows(user).map((row) => (
+                      <li
+                        key={row.key}
+                        className="flex flex-wrap items-center justify-between gap-3 py-2.5"
+                      >
+                        <span className="flex min-w-12 flex-col gap-0.5 text-sm">
+                          <span className="font-mono text-muted-foreground">{row.currency}</span>
+                          {/* Сума розкладена на кілька місць — рідкість, але тоді
+                          адмін має бачити, з чого вона складена, бо правка
+                          ляже лише в одне з них. */}
+                          {row.split && (
+                            <span className="text-xs text-muted-foreground">
+                              {row.split.map((part, index) => (
+                                <span key={part.label}>
+                                  {index > 0 && ' · '}
+                                  {part.label}{' '}
+                                  <Amount
+                                    value={part.amount.toString()}
+                                    currency={row.currency}
+                                    size="sm"
+                                    showCurrency={false}
+                                  />
+                                </span>
+                              ))}
+                            </span>
+                          )}
                         </span>
-                      )}
-                      <div className="flex items-center gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setEditing({ user, wallet: row, mode: 'set' })}
-                        >
-                          <SlidersHorizontal className="size-3.5" aria-hidden />
-                          Змінити
-                        </Button>
-                        {/* Напрям руху грошей видно ще до натискання: додати —
+                        <div className="flex flex-1 flex-wrap items-center justify-end gap-x-6 gap-y-1">
+                          <Amount value={row.available} currency={row.currency} />
+                          {BigInt(row.held) > 0n && (
+                            <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                              <Snowflake className="size-3.5" aria-hidden />
+                              заморожено{' '}
+                              <Amount
+                                value={row.held}
+                                currency={row.currency}
+                                size="sm"
+                                showCurrency={false}
+                              />
+                            </span>
+                          )}
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setEditing({ user, wallet: row.target, mode: 'set' })}
+                            >
+                              <SlidersHorizontal className="size-3.5" aria-hidden />
+                              Змінити
+                            </Button>
+                            {/* Напрям руху грошей видно ще до натискання: додати —
                             зелене, зняти — червоне, як і самі суми в списках. */}
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="border-success/40 text-success hover:bg-success/10 hover:text-success"
-                          onClick={() => setEditing({ user, wallet: row, mode: 'credit' })}
-                        >
-                          <Plus className="size-3.5" aria-hidden />
-                          Додати
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                          onClick={() => setEditing({ user, wallet: row, mode: 'debit' })}
-                        >
-                          <Minus className="size-3.5" aria-hidden />
-                          Зняти
-                        </Button>
-                      </div>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            </CardContent>
-          </Card>
-        ))}
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="border-success/40 text-success hover:bg-success/10 hover:text-success"
+                              onClick={() =>
+                                setEditing({ user, wallet: row.target, mode: 'credit' })
+                              }
+                            >
+                              <Plus className="size-3.5" aria-hidden />
+                              Додати
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                              onClick={() =>
+                                setEditing({ user, wallet: row.target, mode: 'debit' })
+                              }
+                            >
+                              <Minus className="size-3.5" aria-hidden />
+                              Зняти
+                            </Button>
+                          </div>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </CardContent>
+              )}
+            </Card>
+          )
+        })}
       </div>
 
       {editing && (
         <AdjustDialog
-          key={`${editing.user.id}:${editing.wallet.key}:${editing.mode}`}
+          key={`${editing.user.id}:${editing.wallet.currency}:${editing.wallet.memberId ?? 'wallet'}:${editing.mode}`}
           user={editing.user}
           wallet={editing.wallet}
           mode={editing.mode}
