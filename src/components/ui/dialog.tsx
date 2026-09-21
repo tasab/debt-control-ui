@@ -45,6 +45,53 @@ function DialogOverlay({
 }
 
 /**
+ * Наскільки низ екрана зараз перекритий — клавіатурою або нижньою панеллю
+ * браузера.
+ *
+ * На iOS клавіатура не зменшує сторінку: layout viewport лишається тієї ж
+ * висоти, тож вікно, притиснуте до низу, опиняється просто під клавіатурою
+ * разом зі своїми кнопками. Про справжню видиму область знає лише
+ * `visualViewport` — з неї й рахуємо, на скільки підняти шторку.
+ *
+ * Слухачі живуть лише поки діалог відкритий — хук викликає сам вміст
+ * діалога, а його Radix монтує тільки на час показу.
+ */
+function useViewportInset() {
+  const [inset, setInset] = React.useState(0)
+
+  React.useEffect(() => {
+    const vv = typeof window !== "undefined" ? window.visualViewport : null
+    if (!vv) return
+
+    const update = () => {
+      // Те, що лишилося від layout viewport під видимою частиною: клавіатура,
+      // панель Safari або і те, і те разом.
+      setInset(Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop)))
+    }
+
+    update()
+    vv.addEventListener("resize", update)
+    vv.addEventListener("scroll", update)
+    return () => {
+      vv.removeEventListener("resize", update)
+      vv.removeEventListener("scroll", update)
+    }
+  }, [])
+
+  React.useEffect(() => {
+    if (!inset) return
+    // Поле, у яке щойно почали писати, має лишитися на видноті: шторка
+    // піднялася над клавіатурою, але курсор міг опинитися нижче її краю.
+    const active = document.activeElement
+    if (active && typeof active.scrollIntoView === "function" && active !== document.body) {
+      active.scrollIntoView({ block: "nearest" })
+    }
+  }, [inset])
+
+  return inset
+}
+
+/**
  * На телефоні діалог — це нижня «шторка», на десктопі — звичайне вікно
  * посередині.
  *
@@ -55,6 +102,10 @@ function DialogOverlay({
  *
  * Центрування зроблено флексом, а не translate: анімація в’їзду знизу теж
  * рухає transform, і два джерела зсуву на одному елементі дають стрибок.
+ *
+ * Висота шторки — відсоток від обгортки, а не від `dvh`: обгортка
+ * закінчується там, де починається клавіатура, тож вміст обмежується
+ * видимою частиною екрана сам, без жодних чисел у стилях.
  */
 function DialogContent({
   className,
@@ -62,17 +113,31 @@ function DialogContent({
   showCloseButton = true,
   ...props
 }) {
+  const inset = useViewportInset()
+  // Поки низ нічим не перекритий, усе лишається на класах: підняття й
+  // обмеження висоти потрібні саме тоді, коли вилізла клавіатура.
+  const lifted = inset > 0
+
   return (
     <DialogPortal data-slot="dialog-portal">
       <DialogOverlay />
       {/* Обгортка не ловить вказівник, тож клік повз вікно доходить до
-          оверлея й закриває діалог, як і має. */}
-      <div className="pointer-events-none fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4">
+          оверлея й закриває діалог, як і має.
+
+          `bottom` тут інлайном, а не класом: висота клавіатури — число, яке
+          приходить у рантаймі й змінюється при кожному її відкритті. */}
+      <div
+        className="pointer-events-none fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4"
+        style={lifted ? { bottom: `${inset}px` } : undefined}
+      >
         <DialogPrimitive.Content
           data-slot="dialog-content"
+          // Піднята шторка стоїть над клавіатурою, а не над краєм екрана —
+          // запас під домашню смугу iPhone їй уже не потрібен.
+          style={lifted ? { paddingBottom: "1.25rem" } : undefined}
           className={cn(
-            "pointer-events-auto relative grid max-h-[92dvh] w-full gap-4 overflow-y-auto overscroll-contain rounded-t-2xl border-t bg-background p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom,0px))] shadow-lg duration-200 outline-none",
-            "sm:max-h-[85dvh] sm:max-w-lg sm:rounded-xl sm:border sm:p-6 sm:pb-6",
+            "pointer-events-auto relative grid max-h-[92%] w-full gap-4 overflow-y-auto overscroll-contain rounded-t-2xl border-t bg-background p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom,0px))] shadow-lg duration-200 outline-none",
+            "sm:max-h-[85%] sm:max-w-lg sm:rounded-xl sm:border sm:p-6 sm:pb-6",
             "data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0",
             "data-[state=closed]:slide-out-to-bottom-4 data-[state=open]:slide-in-from-bottom-4",
             "sm:data-[state=closed]:zoom-out-95 sm:data-[state=open]:zoom-in-95",
