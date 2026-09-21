@@ -25,6 +25,8 @@ export const transfers = {
   feePreview: (params) => api.get('/fees/preview', params),
   // Своє поповнення: рахунок береться із сесії, чужий назвати нема як.
   topUpSelf: (body, options) => api.post('/topups', body, options),
+  // Дзеркало поповнення: зняти можна лише зі свого гаманця.
+  withdrawSelf: (body, options) => api.post('/withdrawals', body, options),
 }
 
 export const fx = {

@@ -110,6 +110,12 @@ export const useTopUpSelf = () =>
     success: 'Записано',
   })
 
+/** Зняти власні кошти з гаманця — дзеркало запису. */
+export const useWithdrawSelf = () =>
+  useMoneyMutation(({ body, key }) => apis.transfers.withdrawSelf(body, keyOption(key)), {
+    success: 'Знято',
+  })
+
 // ─── FX ─────────────────────────────────────────────────────────────────────
 
 export const useRates = () =>

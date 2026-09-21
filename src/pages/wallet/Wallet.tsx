@@ -154,31 +154,45 @@ function WalletGrid({ wallets }) {
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {funded.map((wallet) => (
             <Card key={wallet.currency}>
-              <CardContent className="flex items-center justify-between gap-3 px-4 py-4">
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold">{wallet.currency}</p>
-                  {!isZero(wallet.held) && (
-                    <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
-                      <Snowflake className="size-3.5 shrink-0" aria-hidden />
-                      <span className="truncate">
-                        Заморожено{' '}
-                        <Amount
-                          value={wallet.held}
-                          currency={wallet.currency}
-                          size="sm"
-                          showCurrency={false}
-                        />
-                      </span>
-                    </p>
-                  )}
+              <CardContent className="space-y-3 px-4 py-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold">{wallet.currency}</p>
+                    {!isZero(wallet.held) && (
+                      <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
+                        <Snowflake className="size-3.5 shrink-0" aria-hidden />
+                        <span className="truncate">
+                          Заморожено{' '}
+                          <Amount
+                            value={wallet.held}
+                            currency={wallet.currency}
+                            size="sm"
+                            showCurrency={false}
+                          />
+                        </span>
+                      </p>
+                    )}
+                  </div>
+                  <Amount
+                    value={wallet.available}
+                    currency={wallet.currency}
+                    size="lg"
+                    showCurrency={false}
+                    className="shrink-0"
+                  />
                 </div>
-                <Amount
-                  value={wallet.available}
-                  currency={wallet.currency}
-                  size="lg"
-                  showCurrency={false}
-                  className="shrink-0"
-                />
+
+                {/* Дві дії просто в картці рахунку: саме тут людина бачить
+                    суму й тут же вирішує, що вона змінилася. */}
+                <div className="grid grid-cols-2 gap-2">
+                  <TopUpDialog mode="topup" currency={wallet.currency} block />
+                  <TopUpDialog
+                    mode="withdraw"
+                    currency={wallet.currency}
+                    available={wallet.available}
+                    block
+                  />
+                </div>
               </CardContent>
             </Card>
           ))}

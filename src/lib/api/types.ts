@@ -54,6 +54,8 @@ export type EntryType =
   | 'fx'
   | 'fee'
   | 'topup'
+  | 'self_topup'
+  | 'self_withdrawal'
   | 'funding_hold'
   | 'funding_release'
   | 'disbursement'

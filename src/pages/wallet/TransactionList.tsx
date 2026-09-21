@@ -28,6 +28,7 @@ const TYPES = {
   // Підпис навмисно не «Поповнення»: у виписці має читатися, що суму вписав
   // власник рахунку з голови, а не провів адміністратор.
   self_topup: { label: 'Записано вами', icon: NotebookPen },
+  self_withdrawal: { label: 'Знято вами', icon: NotebookPen },
   funding_hold: { label: 'Заморожено під заявку', icon: Snowflake },
   funding_release: { label: 'Холд повернуто', icon: Undo2 },
   disbursement: { label: 'Видача позики', icon: Banknote },

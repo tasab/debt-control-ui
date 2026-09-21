@@ -26,6 +26,7 @@ const TYPE_OPTIONS = [
   { value: 'fee', label: 'Комісії' },
   { value: 'topup', label: 'Поповнення' },
   { value: 'self_topup', label: 'Записано вами' },
+  { value: 'self_withdrawal', label: 'Знято вами' },
   { value: 'adjustment', label: 'Коригування' },
   { value: 'funding_hold', label: 'Заморожування' },
   { value: 'repayment_in', label: 'Надходження за позиками' },
