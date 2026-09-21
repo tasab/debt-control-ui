@@ -1,5 +1,13 @@
 import { useState } from 'react'
-import { Search, ShieldCheck, SlidersHorizontal, Snowflake, Trash2 } from 'lucide-react'
+import {
+  Minus,
+  Plus,
+  Search,
+  ShieldCheck,
+  SlidersHorizontal,
+  Snowflake,
+  Trash2,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -16,13 +24,6 @@ import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { Textarea } from '@/components/ui/textarea'
 import { UserShareDialog } from '@/pages/wallet/ShareBalance'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { Amount } from '@/components/money/Amount'
 import { AmountInput } from '@/components/money/AmountInput'
 import { EmptyState, ErrorState, RowsSkeleton } from '@/components/layout/states'
@@ -47,16 +48,60 @@ import {
  * нишком. Заморожені кошти не редагуються — вони належать відкритій заявці.
  */
 const MODES = {
-  set: { label: 'Встановити баланс', verb: 'Стане' },
-  credit: { label: 'Додати до балансу', verb: 'Стане' },
-  debit: { label: 'Списати з балансу', verb: 'Стане' },
+  set: {
+    title: 'Встановити баланс',
+    field: 'Новий баланс',
+    verb: 'Стане',
+    submit: 'Підтвердити',
+  },
+  credit: {
+    title: 'Додати до балансу',
+    field: 'Скільки додати',
+    verb: 'Стане',
+    submit: 'Додати',
+  },
+  debit: {
+    title: 'Зняти з балансу',
+    field: 'Скільки зняти',
+    verb: 'Стане',
+    submit: 'Зняти',
+  },
 }
+
+/**
+ * Гроші учасника одним списком.
+ *
+ * Для адміна немає різниці, де саме лежить сума — на гаманці чи в боргу
+ * бізнесу перед людиною: правиться вона однаково. Тому окремого блоку «У
+ * бізнесі» немає, а рядок лише підписаний назвою бізнесу.
+ */
+const balanceRows = (user) => [
+  ...(user.wallets ?? []).map((wallet) => ({
+    key: `wallet:${wallet.currency}`,
+    currency: wallet.currency,
+    available: wallet.available,
+    held: wallet.held,
+  })),
+  ...(user.invested ?? []).map((row) => ({
+    key: `member:${row.memberId}:${row.currency}`,
+    currency: row.currency,
+    available: row.amount,
+    held: '0',
+    memberId: row.memberId,
+    businessName: row.businessName,
+  })),
+]
 
 export default function Admin() {
   const [search, setSearch] = useState('')
   const users = useAdminUsers(search)
-  // Яку валюту якого учасника зараз редагуємо — null, поки діалог закритий.
-  const [editing, setEditing] = useState<{ user: any; wallet: any } | null>(null)
+  // Яку валюту якого учасника зараз редагуємо і якою дією — null, поки діалог
+  // закритий.
+  const [editing, setEditing] = useState<{
+    user: any
+    wallet: any
+    mode: string
+  } | null>(null)
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
@@ -123,81 +168,63 @@ export default function Admin() {
               </div>
             </CardHeader>
 
-            <CardContent className="space-y-3">
-              {/* Кошти учасника лежать у бізнесі, а не на гаманці — без цього
-                  рядка картка показувала б самі нулі там, де є гроші. */}
-              {user.invested?.length > 0 && (
-                <div className="rounded-md border border-dashed p-2.5">
-                  <p className="mb-1.5 text-xs font-medium text-muted-foreground">У бізнесі</p>
-                  <div className="space-y-1">
-                    {user.invested.map((row, index) => (
-                      <div key={index} className="flex items-center justify-between gap-3 text-sm">
-                        <span className="truncate text-muted-foreground">
-                          {row.businessName}
-                          <span className="ml-1.5 font-mono text-xs">{row.currency}</span>
-                        </span>
-                        <div className="flex items-center gap-2">
-                          <Amount value={row.amount} currency={row.currency} size="sm" />
-                          {/* Та сама правка, що й для гаманця: адмін каже
-                              «має бути стільки», а куди це лягає — вирішує ціль. */}
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="size-6"
-                            aria-label={`Змінити борг у «${row.businessName}»`}
-                            onClick={() =>
-                              setEditing({
-                                user,
-                                wallet: {
-                                  currency: row.currency,
-                                  available: row.amount,
-                                  held: '0',
-                                  memberId: row.memberId,
-                                  businessName: row.businessName,
-                                },
-                              })
-                            }
-                          >
-                            <SlidersHorizontal className="size-3.5" aria-hidden />
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
+            <CardContent>
               <ul className="divide-y">
-                {user.wallets.map((wallet) => (
+                {balanceRows(user).map((row) => (
                   <li
-                    key={wallet.currency}
+                    key={row.key}
                     className="flex flex-wrap items-center justify-between gap-3 py-2.5"
                   >
-                    <span className="w-12 font-mono text-sm text-muted-foreground">
-                      {wallet.currency}
+                    <span className="flex min-w-12 items-baseline gap-2 text-sm">
+                      <span className="font-mono text-muted-foreground">{row.currency}</span>
+                      {row.businessName && (
+                        <span className="truncate text-muted-foreground">{row.businessName}</span>
+                      )}
                     </span>
                     <div className="flex flex-1 flex-wrap items-center justify-end gap-x-6 gap-y-1">
-                      <Amount value={wallet.available} currency={wallet.currency} />
-                      {BigInt(wallet.held) > 0n && (
+                      <Amount value={row.available} currency={row.currency} />
+                      {BigInt(row.held) > 0n && (
                         <span className="flex items-center gap-1 text-xs text-muted-foreground">
                           <Snowflake className="size-3.5" aria-hidden />
                           заморожено{' '}
                           <Amount
-                            value={wallet.held}
-                            currency={wallet.currency}
+                            value={row.held}
+                            currency={row.currency}
                             size="sm"
                             showCurrency={false}
                           />
                         </span>
                       )}
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setEditing({ user, wallet })}
-                      >
-                        <SlidersHorizontal className="size-3.5" aria-hidden />
-                        Змінити
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setEditing({ user, wallet: row, mode: 'set' })}
+                        >
+                          <SlidersHorizontal className="size-3.5" aria-hidden />
+                          Змінити
+                        </Button>
+                        {/* Напрям руху грошей видно ще до натискання: додати —
+                            зелене, зняти — червоне, як і самі суми в списках. */}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="border-success/40 text-success hover:bg-success/10 hover:text-success"
+                          onClick={() => setEditing({ user, wallet: row, mode: 'credit' })}
+                        >
+                          <Plus className="size-3.5" aria-hidden />
+                          Додати
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                          onClick={() => setEditing({ user, wallet: row, mode: 'debit' })}
+                        >
+                          <Minus className="size-3.5" aria-hidden />
+                          Зняти
+                        </Button>
+                      </div>
                     </div>
                   </li>
                 ))}
@@ -209,8 +236,10 @@ export default function Admin() {
 
       {editing && (
         <AdjustDialog
+          key={`${editing.user.id}:${editing.wallet.key}:${editing.mode}`}
           user={editing.user}
           wallet={editing.wallet}
+          mode={editing.mode}
           onClose={() => setEditing(null)}
         />
       )}
@@ -281,21 +310,30 @@ function DeleteUserButton({ user }) {
 /**
  * Правка балансу — гаманця або боргу бізнесу перед учасником.
  *
- * Для адміна це одна дія: «має бути стільки». Що саме правиться, вирішує
- * ціль; знак і рахунок — деталі журналу, і сюди вони не протікають.
+ * Дію задає кнопка, якою вікно відкрили: «Змінити» каже «має бути стільки»,
+ * «Додати» й «Зняти» — «на стільки більше чи менше». Вибирати її ще раз
+ * усередині нема з чого. Що саме правиться, вирішує ціль; знак і рахунок —
+ * деталі журналу, і сюди вони не протікають.
  */
-function AdjustDialog({ user, wallet, onClose }) {
+function AdjustDialog({ user, wallet, mode, onClose }) {
   const adjust = useAdjustBalance()
   const history = useAdminAdjustments(user.id)
-  const [mode, setMode] = useState('set')
-  const [amount, setAmount] = useState(mode === 'set' ? wallet.available : '')
+  // Поле починається порожнім: підставлений баланс читався як уже введена
+  // сума, і робота починалася зі стирання чужих нулів.
+  const [amount, setAmount] = useState('')
   const [comment, setComment] = useState('')
   const [error, setError] = useState<string | null>(null)
 
   const isClaim = Boolean(wallet.memberId)
   const before = BigInt(wallet.available)
   const entered = amount ? BigInt(amount) : 0n
-  const after = mode === 'set' ? entered : mode === 'credit' ? before + entered : before - entered
+  const after = !amount
+    ? before
+    : mode === 'set'
+      ? entered
+      : mode === 'credit'
+        ? before + entered
+        : before - entered
   const belowZero = after < 0n
   const unchanged = after === before
 
@@ -326,8 +364,11 @@ function AdjustDialog({ user, wallet, onClose }) {
       <DialogContent>
         <DialogHeader>
           <DialogTitle>
-            {user.displayName} · {wallet.currency}
-            {isClaim && <span className="ml-2 font-normal text-muted-foreground">у бізнесі</span>}
+            {MODES[mode].title}
+            <span className="ml-2 font-normal text-muted-foreground">
+              {user.displayName} · {wallet.currency}
+              {isClaim && ' у бізнесі'}
+            </span>
           </DialogTitle>
           <DialogDescription>
             {isClaim ? (
@@ -347,33 +388,7 @@ function AdjustDialog({ user, wallet, onClose }) {
 
         <form onSubmit={submit} className="space-y-4" noValidate>
           <div className="space-y-2">
-            <Label htmlFor="adjust-mode">Дія</Label>
-            <Select
-              value={mode}
-              onValueChange={(next) => {
-                setMode(next)
-                // «Встановити» починає з поточного балансу — так видно, що саме
-                // редагується, і випадкове підтвердження нічого не змінює.
-                setAmount(next === 'set' ? wallet.available : '')
-              }}
-            >
-              <SelectTrigger id="adjust-mode">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {Object.entries(MODES).map(([value, { label }]) => (
-                  <SelectItem key={value} value={value}>
-                    {label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="adjust-amount">
-              {mode === 'set' ? 'Новий баланс' : 'Сума'}
-            </Label>
+            <Label htmlFor="adjust-amount">{MODES[mode].field}</Label>
             <AmountInput
               id="adjust-amount"
               currency={wallet.currency}
@@ -422,9 +437,19 @@ function AdjustDialog({ user, wallet, onClose }) {
             </Button>
             <Button
               type="submit"
-              disabled={adjust.isPending || belowZero || unchanged || comment.trim().length < 3}
+              // Колір кнопки той самий, що й у рядку списку, — щоб у вікні не
+              // доводилося перечитувати, яку саме дію підтверджуєш.
+              variant={mode === 'debit' ? 'destructive' : 'default'}
+              className={
+                mode === 'credit'
+                  ? 'bg-success text-success-foreground hover:bg-success/90'
+                  : undefined
+              }
+              disabled={
+                adjust.isPending || !amount || belowZero || unchanged || comment.trim().length < 3
+              }
             >
-              {adjust.isPending ? 'Проводимо…' : 'Підтвердити'}
+              {adjust.isPending ? 'Проводимо…' : MODES[mode].submit}
             </Button>
           </DialogFooter>
         </form>
