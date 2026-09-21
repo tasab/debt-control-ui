@@ -99,6 +99,14 @@ export const useUserSearch = (query) =>
     staleTime: 30_000,
   })
 
+/** Усі, кому можна переказати: той самий ендпоінт, але без запиту. */
+export const useTransferRecipients = () =>
+  useQuery({
+    queryKey: ['users', ''],
+    queryFn: () => apis.auth.searchUsers(''),
+    staleTime: 30_000,
+  })
+
 export const useTransfer = () =>
   useMoneyMutation(({ body, key }) => apis.transfers.create(body, keyOption(key)), {
     success: 'Переказ виконано',

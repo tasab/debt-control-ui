@@ -1,24 +1,29 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Check, Search } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Separator } from '@/components/ui/separator'
 import { ActionBar } from '@/components/layout/ActionBar'
 import { AmountInput } from '@/components/money/AmountInput'
 import { CurrencySelect } from '@/components/money/CurrencySelect'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Amount } from '@/components/money/Amount'
 import { FieldError } from '@/pages/auth/Login'
 import { cn } from '@/lib/utils'
 import { transferSchema } from '@/lib/schema/forms'
 import { applyServerErrors } from '@/lib/formErrors'
-import { useTransfer, useUserSearch, useWallets } from '@/lib/hooks'
+import { useTransfer, useTransferRecipients, useWallets } from '@/lib/hooks'
 import * as apis from '@/lib/api'
 
 export default function Transfer() {
@@ -71,7 +76,7 @@ export default function Transfer() {
         <Card>
           <CardHeader>
             <CardTitle>Кому переказуємо</CardTitle>
-            <CardDescription>Знайдіть отримувача за іменем або поштою.</CardDescription>
+            <CardDescription>Оберіть отримувача зі списку.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-5">
             <RecipientPicker
@@ -194,86 +199,65 @@ function FeeBreakdown({ preview, currency, highlight }) {
   )
 }
 
-/** Debounced search — a request per keystroke would hammer the endpoint. */
+/**
+ * Кому переказати — списком, а не пошуком.
+ *
+ * Пошук має сенс там, де людей тисячі й імені ти не знаєш. Тут коло вузьке й
+ * постійне, тож три літери щоразу набирати — зайва робота: отримувача просто
+ * видно. Під ім’ям стоїть замаскована пошта — єдине, чим розрізняються два
+ * однакові імені.
+ */
 function RecipientPicker({ value, onSelect }) {
-  const [query, setQuery] = useState('')
-  const [debounced, setDebounced] = useState('')
+  const recipients = useTransferRecipients()
+  const people = recipients.data ?? []
 
-  useEffect(() => {
-    const timer = setTimeout(() => setDebounced(query), 300)
-    return () => clearTimeout(timer)
-  }, [query])
-
-  const search = useUserSearch(debounced)
-  const results = useMemo(() => search.data ?? [], [search.data])
-
-  if (value) {
-    return (
-      <div className="flex items-center justify-between rounded-lg border bg-accent/40 px-4 py-3">
-        <div className="flex min-w-0 items-center gap-3">
-          <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/12 text-sm font-semibold text-primary">
-            {value.displayName?.trim().charAt(0).toUpperCase()}
-          </span>
-          <div className="min-w-0">
-            <p className="truncate font-medium">{value.displayName}</p>
-            <p className="truncate text-xs text-muted-foreground">{value.hint}</p>
-          </div>
-        </div>
-        <Button type="button" variant="ghost" size="sm" onClick={() => onSelect(null)}>
-          Змінити
-        </Button>
-      </div>
-    )
-  }
+  const placeholder = recipients.isLoading
+    ? 'Завантажуємо…'
+    : people.length === 0
+      ? 'Нема кому переказувати'
+      : 'Оберіть отримувача'
 
   return (
     <div className="space-y-2">
       <Label htmlFor="recipient">Отримувач</Label>
-      <div className="relative">
-        <Search
-          className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-          aria-hidden
-        />
-        <Input
-          id="recipient"
-          className="pl-9"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder="Ім’я або пошта"
-          autoComplete="off"
-          enterKeyHint="search"
-          type="search"
-        />
-      </div>
-
-      {debounced.length >= 2 && (
-        <ul className="max-h-64 divide-y overflow-y-auto overscroll-contain rounded-md border">
-          {search.isLoading && <li className="px-4 py-3 text-sm text-muted-foreground">Шукаємо…</li>}
-          {!search.isLoading && !results.length && (
-            <li className="px-4 py-3 text-sm text-muted-foreground">Нікого не знайдено</li>
-          )}
-          {results.map((user) => (
-            <li key={user.id}>
-              <button
-                type="button"
-                onClick={() => onSelect(user)}
-                className="tap flex min-h-14 w-full items-center justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-accent"
-              >
-                <div className="flex min-w-0 items-center gap-3">
-                  <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium">
-                    {user.displayName?.trim().charAt(0).toUpperCase()}
-                  </span>
-                  <div className="min-w-0">
-                    <p className="truncate font-medium">{user.displayName}</p>
-                    <p className="truncate text-xs text-muted-foreground">{user.hint}</p>
-                  </div>
-                </div>
-                <Check className="size-4 shrink-0 text-muted-foreground" aria-hidden />
-              </button>
-            </li>
+      <Select
+        value={value?.id ?? ''}
+        onValueChange={(id) => onSelect(people.find((person) => person.id === id) ?? null)}
+        disabled={recipients.isLoading || people.length === 0}
+      >
+        {/* Висота під два рядки: ім’я й пошта під ним — те саме, що видно в
+            списку, тож вибір не доводиться перевіряти, розгортаючи його знов. */}
+        <SelectTrigger id="recipient" className="h-auto min-h-14 w-full py-2">
+          <SelectValue placeholder={placeholder}>
+            {value && <Person person={value} />}
+          </SelectValue>
+        </SelectTrigger>
+        <SelectContent>
+          {people.map((person) => (
+            <SelectItem key={person.id} value={person.id} className="py-2">
+              <Person person={person} />
+            </SelectItem>
           ))}
-        </ul>
+        </SelectContent>
+      </Select>
+      {recipients.isError && (
+        <FieldError message="Не вдалося завантажити список. Оновіть сторінку." />
       )}
     </div>
+  )
+}
+
+/** Рядок людини: кружечок з ініціалом, імʼя і замаскована пошта під ним. */
+function Person({ person }) {
+  return (
+    <span className="flex min-w-0 items-center gap-3 text-left">
+      <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium">
+        {person.displayName?.trim().charAt(0).toUpperCase()}
+      </span>
+      <span className="min-w-0">
+        <span className="block truncate font-medium">{person.displayName}</span>
+        <span className="block truncate text-xs text-muted-foreground">{person.hint}</span>
+      </span>
+    </span>
   )
 }
