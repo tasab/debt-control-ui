@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Coins } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { ArrowLeft, Coins } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -32,7 +33,7 @@ export function Rates() {
             {/* П’ять колонок із двома полями вводу не стискаються нижче
                 приблизно 22rem — на вужчому екрані таблиця возиться вбік,
                 замість того щоб ламати рядки посеред курсу. */}
-            <div className="no-scrollbar -mx-3 overflow-x-auto px-3">
+            <div className="no-scrollbar -mx-3 overflow-x-auto overscroll-x-contain px-3">
             <div className="grid min-w-[22rem] grid-cols-[auto_1fr_1fr_auto_auto] items-center gap-x-3 gap-y-2 text-sm">
               <span />
               <span className="text-xs text-muted-foreground">Купівля</span>
@@ -103,5 +104,27 @@ function RateRow({ rate }) {
         Зберегти
       </Button>
     </>
+  )
+}
+
+/**
+ * Окрема сторінка курсів.
+ *
+ * Курси — не частина роботи з рахунками учасників: їх правлять раз на день і
+ * не тоді, коли шукають чийсь баланс. Поки вони стояли першим блоком в
+ * адмінці, кожен вхід туди починався з прокрутки повз таблицю, яка цього разу
+ * не потрібна.
+ */
+export default function RatesPage() {
+  return (
+    <div className="mx-auto max-w-4xl space-y-6">
+      <Button asChild variant="ghost" size="sm" className="-ml-2 text-muted-foreground">
+        <Link to="/admin">
+          <ArrowLeft className="size-4" aria-hidden />
+          Рахунки учасників
+        </Link>
+      </Button>
+      <Rates />
+    </div>
   )
 }

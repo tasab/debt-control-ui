@@ -16,6 +16,7 @@ import History, { TransactionDetail } from '@/pages/wallet/History.tsx'
 import Business from '@/pages/business/Business.tsx'
 import Profile from '@/pages/profile/Profile.tsx'
 import Admin from '@/pages/admin/Admin.tsx'
+import RatesPage from '@/pages/admin/Rates.tsx'
 import SharedBalance from '@/pages/share/SharedBalance.tsx'
 
 export default function App() {
@@ -68,6 +69,7 @@ export default function App() {
                     ендпоінті /admin/* незалежно від того, що показує клієнт. */}
                 <Route element={<RequireAdmin />}>
                   <Route path="/admin" element={<Admin />} />
+                  <Route path="/rates" element={<RatesPage />} />
                 </Route>
 
                 <Route path="/profile" element={<Profile />} />

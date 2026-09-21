@@ -2,6 +2,7 @@ import { NavLink, Outlet } from 'react-router-dom'
 import {
   ArrowLeftRight,
   Briefcase,
+  Coins,
   LogOut,
   Repeat,
   ShieldCheck,
@@ -43,6 +44,10 @@ function navFor(user) {
   // мають підмішуватися до звичайних ролей.
   if (user?.isAdmin) {
     items.push({ to: '/admin', label: 'Адмін', short: 'Адмін', icon: ShieldCheck })
+    // `desktopOnly` — курси правлять із комп’ютера, і шостий пункт у нижній
+    // панелі відібрав би ширину в п’яти щоденних. На телефоні вони за
+    // кнопкою в адмінці, звідки по них і ходять.
+    items.push({ to: '/rates', label: 'Курси', short: 'Курси', icon: Coins, desktopOnly: true })
   }
   return items
 }
@@ -180,16 +185,18 @@ export function AppShell() {
  *
  * Пунктів щонайбільше п’ять (три базові плюс бізнес і адмінка), тож усі
  * вміщаються в один ряд без «ще» і без гамбургера: кожен розділ — один дотик
- * у зоні, куди дістає великий палець.
+ * у зоні, куди дістає великий палець. Те, що позначене `desktopOnly`, сюди не
+ * потрапляє — саме щоб цих п’яти не стало шість.
  */
 function MobileNav({ items, waiting }) {
+  const visible = items.filter((item) => !item.desktopOnly)
   return (
     <nav
       className="pb-safe fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 md:hidden"
       aria-label="Основна навігація"
     >
       <ul className="flex items-stretch">
-        {items.map((item) => {
+        {visible.map((item) => {
           const count = waiting[item.to] ?? 0
           return (
             <li key={item.to} className="flex-1">
