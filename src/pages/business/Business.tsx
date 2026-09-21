@@ -7,8 +7,9 @@ import {
   ClipboardList,
   Coins,
   Gauge,
-  Pencil,
+  Minus,
   PiggyBank,
+  Plus,
   Scale,
   TrendingUp,
   TriangleAlert,
@@ -21,17 +22,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog'
 import { Amount, AmountBlock } from '@/components/money/Amount'
-import { AmountInput } from '@/components/money/AmountInput'
 import { CurrencySelect } from '@/components/money/CurrencySelect'
 import { CardsSkeleton, ErrorState } from '@/components/layout/states'
 import { SectionHeader } from '@/components/layout/Section'
@@ -39,7 +30,7 @@ import { ActionTileLabel, actionTileClass } from '@/components/layout/ActionTile
 import { FieldError } from '@/pages/auth/Login'
 import { businessSchema } from '@/lib/schema/forms'
 import { applyServerErrors } from '@/lib/formErrors'
-import { useBusiness, useCreateBusiness, useDashboard, useSetStartingCapital } from '@/lib/hooks'
+import { useBusiness, useCreateBusiness, useDashboard } from '@/lib/hooks'
 import { Registers } from './Registers.tsx'
 import { CashCount, CashCountDialog } from './CashCount.tsx'
 import { SPEND_KINDS, Spending, SpendDialog } from './Spending.tsx'
@@ -69,87 +60,6 @@ export default function Business() {
       <Registers />
       <Sections />
     </div>
-  )
-}
-
-/**
- * Правка власного капіталу.
- *
- * Число виставляє людина, а не виводить система: гроші власника заходять і
- * виходять десятками способів, і зводити їх автоматично означало б помилятися
- * щоразу, коли якийсь рух пройшов повз потрібну кнопку.
- *
- * Зберігається датованим рядком, а не перезаписом: змінити капітал заднім
- * числом і тим переписати вже показаний прибуток за минулий місяць — не те,
- * що має ставатися непомітно.
- */
-function CapitalDialog({ capital }) {
-  const [open, setOpen] = useState(false)
-  const save = useSetStartingCapital()
-  const [amount, setAmount] = useState(capital?.amount ?? '')
-  const [currency, setCurrency] = useState(capital?.currency ?? 'UAH')
-
-  const submit = async (event) => {
-    event.preventDefault()
-    if (!amount) return
-    await save.mutateAsync({ amount, currency })
-    setOpen(false)
-  }
-
-  return (
-    <Dialog
-      open={open}
-      onOpenChange={(next) => {
-        setOpen(next)
-        if (next) {
-          setAmount(capital?.amount ?? '')
-          setCurrency(capital?.currency ?? 'UAH')
-        }
-      }}
-    >
-      <DialogTrigger asChild>
-        <Button variant="ghost" size="sm" className="h-8 px-2 text-xs text-muted-foreground">
-          <Pencil className="size-3.5" aria-hidden /> Змінити
-        </Button>
-      </DialogTrigger>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Мій капітал</DialogTitle>
-          <DialogDescription>
-            Скільки ваших власних грошей зараз у справі. Усе, що є понад це й понад борг
-            перед учасниками, вважається прибутком.
-          </DialogDescription>
-        </DialogHeader>
-        <form onSubmit={submit} className="space-y-4" noValidate>
-          <div className="grid grid-cols-[1fr_7rem] gap-3 sm:grid-cols-[1fr_8rem] sm:gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="capital-amount">Сума</Label>
-              <AmountInput
-                id="capital-amount"
-                currency={currency}
-                value={amount}
-                onChange={(value) => setAmount(value ?? '')}
-                autoFocus
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="capital-currency">Валюта</Label>
-              <CurrencySelect
-                id="capital-currency"
-                className="w-full"
-                value={currency}
-                onChange={setCurrency}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button type="submit" disabled={save.isPending || !amount}>
-              {save.isPending ? 'Зберігаємо…' : 'Зберегти'}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
   )
 }
 
@@ -209,7 +119,11 @@ function Sections() {
       {/* Чотири розділи на телефоні — сітка 2×2, а не стрічка з прокруткою:
           так видно всі чотири одразу. Прокрутка ховала б два останні за краєм
           екрана, і про їх існування дізнавалися б випадково. */}
-      <TabsList className="grid h-auto w-full grid-cols-2 gap-1 sm:flex sm:w-auto sm:justify-start">
+      {/* `group-data-…:h-auto` — не зайве поряд із `h-auto`: базова висота
+          списку задана саме варіантом (`…/tabs:h-9`), і звичайний клас її не
+          перекриває. Без цього другий ряд вкладок вивалювався з коробки
+          списку й накривав кнопки розділу під ним. */}
+      <TabsList className="grid h-auto w-full grid-cols-2 gap-1 group-data-[orientation=horizontal]/tabs:h-auto sm:flex sm:w-auto sm:justify-start">
         {SECTIONS.map((section) => (
           <TabsTrigger key={section.value} value={section.value} className="h-9 gap-1.5 px-2.5">
             <section.icon className="size-4" aria-hidden />
@@ -229,16 +143,21 @@ function Sections() {
 /**
  * Чотири дії, заради яких сюди заходять щодня.
  *
- * Перерахунок кас стояв у шапці, а «Витрата», «Забрати собі» й «Внести своє» —
- * трьома дрібними кнопками всередині вкладки «Заробіток по місяцях». Щоб
- * записати вечірню витрату, треба було догортати до вкладок, перемкнути
- * розділ і поцілити в третю кнопку завширшки з палець. Це щоденна дія, а не
- * налаштування звіту, тож вона стоїть там само, де перерахунок — одразу під
- * назвою бізнесу і над цифрами, які вона змінює.
+ * Перерахунок кас стояв у шапці, а «Витрата» — дрібною кнопкою всередині
+ * вкладки «Заробіток по місяцях». Щоб записати вечірню витрату, треба було
+ * догортати до вкладок, перемкнути розділ і поцілити в кнопку завширшки з
+ * палець. Це щоденна дія, а не налаштування звіту, тож вона стоїть там само,
+ * де перерахунок — одразу під назвою бізнесу і над цифрами, які вона змінює.
+ *
+ * Внесок і вилучення власних грошей сюди не входять: вони змінюють саме
+ * «Мій капітал», і кнопки стоять на тій картці, де видно число, яке вони
+ * рухають.
  */
 function DailyActions() {
+  const expense = SPEND_KINDS.expense
+
   return (
-    <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
+    <div className="grid grid-cols-2 gap-2 sm:gap-3">
       <CashCountDialog
         trigger={
           <button type="button" className={actionTileClass(true)}>
@@ -247,21 +166,15 @@ function DailyActions() {
           </button>
         }
       />
-      {['expense', 'draw', 'capital'].map((kind) => {
-        const preset = SPEND_KINDS[kind]
-        return (
-          <SpendDialog
-            key={kind}
-            kind={kind}
-            trigger={
-              <button type="button" className={actionTileClass()}>
-                <preset.icon className="size-5" aria-hidden />
-                <ActionTileLabel>{preset.label}</ActionTileLabel>
-              </button>
-            }
-          />
-        )
-      })}
+      <SpendDialog
+        kind="expense"
+        trigger={
+          <button type="button" className={actionTileClass()}>
+            <expense.icon className="size-5" aria-hidden />
+            <ActionTileLabel>{expense.label}</ActionTileLabel>
+          </button>
+        }
+      />
     </div>
   )
 }
@@ -416,7 +329,37 @@ function Dashboard() {
                 )
               }
             />
-            <CapitalDialog capital={data.startingCapital} />
+            {/* Гроші власника рухаються тут, біля свого ж числа: «Додати» —
+                внесок у справу, «Забрати» — вилучення. Прибутку це не
+                змінює, тому кнопки не стоять серед щоденних дій. */}
+            <div className="grid grid-cols-2 gap-2 pt-1">
+              <SpendDialog
+                kind="capital"
+                trigger={
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full border-success/40 text-success hover:bg-success/10 hover:text-success"
+                  >
+                    <Plus className="size-3.5" aria-hidden />
+                    Додати
+                  </Button>
+                }
+              />
+              <SpendDialog
+                kind="draw"
+                trigger={
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  >
+                    <Minus className="size-3.5" aria-hidden />
+                    Забрати
+                  </Button>
+                }
+              />
+            </div>
           </CardContent>
         </Card>
 
@@ -443,8 +386,12 @@ function Dashboard() {
         </Card>
       </div>
 
+      {/* `min-w-0` на картках — не косметика: усередині правої лежить таблиця
+          з власною мінімальною шириною, а колонка гріда за замовчуванням
+          розтягується під найширший вміст. Без цього обидві картки вилазили
+          за екран телефона замість того, щоб таблиця возилася вбік у собі. */}
       <div className="grid gap-2 sm:grid-cols-2">
-        <Card>
+        <Card className="min-w-0">
           <CardHeader className="p-4 pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
               Виторг і витрати
@@ -466,7 +413,7 @@ function Dashboard() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="min-w-0">
           <CardHeader className="p-4 pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
               У розрізі валют
