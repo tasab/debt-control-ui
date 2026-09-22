@@ -83,6 +83,6 @@ export function useAuth() {
 export function landingFor(user) {
   if (user?.capabilities?.includes('borrow')) return '/business'
   // Гаманець — головна для вкладника: там і вільні кошти, і вклади, і
-  // запрошення до бізнесу.
-  return '/wallet'
+  // запрошення до бізнесу. Він же корінь додатка.
+  return '/'
 }

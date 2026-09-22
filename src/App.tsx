@@ -51,8 +51,12 @@ export default function App() {
             {/* One session check for the whole app, at the shell. */}
             <Route element={<RequireAuth />}>
               <Route element={<AppShell />}>
-                <Route index element={<HomeRedirect />} />
-                <Route path="/wallet" element={<Wallet />} />
+                {/* Гаманець — корінь: це перше, заради чого відкривають
+                    додаток, і окрема адреса /wallet була зайвим кроком.
+                    Стару адресу лишено перенаправленням — вона вже в чиїхось
+                    закладках і в посиланнях, надісланих раніше. */}
+                <Route index element={<Wallet />} />
+                <Route path="/wallet" element={<Navigate to="/" replace />} />
                 <Route path="/transfer" element={<Transfer />} />
                 <Route path="/convert" element={<Convert />} />
                 <Route path="/history" element={<History />} />
@@ -112,11 +116,6 @@ function RequireAdmin() {
   return <Outlet />
 }
 
-function HomeRedirect() {
-  const { user } = useAuth()
-  return <Navigate to={landingFor(user)} replace />
-}
-
 function BootSkeleton() {
   return (
     <div className="mx-auto max-w-5xl space-y-4 px-4 py-10">
@@ -138,7 +137,7 @@ function NotFound() {
       <p className="text-5xl font-semibold tracking-tight text-muted-foreground">404</p>
       <h1 className="mt-4 text-lg font-medium">Такої сторінки немає</h1>
       <Button asChild size="lg" className="mt-6 w-full max-w-xs">
-        <Link to="/wallet">На гаманець</Link>
+        <Link to="/">На гаманець</Link>
       </Button>
     </div>
   )

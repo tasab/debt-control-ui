@@ -36,7 +36,7 @@ import { ThemeToggle } from './ThemeToggle.tsx'
  */
 function navFor(user) {
   const items = [
-    { to: '/wallet', label: 'Гаманець', icon: Wallet },
+    { to: '/', label: 'Гаманець', icon: Wallet },
     { to: '/transfer', label: 'Переказ', icon: ArrowLeftRight },
     { to: '/convert', label: 'Обмін', icon: Repeat },
   ]
@@ -63,7 +63,7 @@ function useWaiting() {
   const memberships = useMemberships()
   // Запрошення показуються на гаманці — туди ж веде й лічильник.
   return {
-    '/wallet': (memberships.data ?? []).filter((m) => m.status === 'pending').length,
+    '/': (memberships.data ?? []).filter((m) => m.status === 'pending').length,
   }
 }
 
@@ -86,7 +86,7 @@ export function AppShell() {
         <div className="mx-auto flex h-14 max-w-6xl items-center gap-3 px-4">
           <MobileMenu items={items} waiting={waiting} />
           <NavLink
-            to="/wallet"
+            to="/"
             className="flex shrink-0 items-center gap-2 text-base font-semibold tracking-tight"
           >
             <span
@@ -105,7 +105,14 @@ export function AppShell() {
             {items.map((item) => {
               const count = waiting[item.to] ?? 0
               return (
-                <NavLink key={item.to} to={item.to} className={deskLinkClass}>
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  // Корінь інакше вважався б активним на кожній сторінці:
+                  // будь-який шлях починається з «/».
+                  end={item.to === '/'}
+                  className={deskLinkClass}
+                >
                   <item.icon className="size-4" aria-hidden />
                   <span>{item.label}</span>
                   {count > 0 && (
@@ -216,6 +223,7 @@ function MobileMenu({ items, waiting }) {
                 <li key={item.to}>
                   <NavLink
                     to={item.to}
+                    end={item.to === '/'}
                     onClick={() => setOpen(false)}
                     className={({ isActive }) =>
                       cn(
