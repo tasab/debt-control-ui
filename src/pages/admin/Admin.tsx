@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import {
   ChevronRight,
   Coins,
+  History,
   Minus,
   Plus,
   Search,
@@ -20,6 +21,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -27,6 +29,7 @@ import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { Textarea } from '@/components/ui/textarea'
 import { UserShareDialog } from '@/pages/wallet/ShareBalance'
+import { MovesList } from '@/pages/wallet/TransactionList'
 import { Amount } from '@/components/money/Amount'
 import { AmountInput } from '@/components/money/AmountInput'
 import { EmptyState, ErrorState, RowsSkeleton } from '@/components/layout/states'
@@ -37,6 +40,7 @@ import { cn } from '@/lib/utils'
 import {
   useAdjustBalance,
   useAdminAdjustments,
+  useAdminUserTransactions,
   useAdminUsers,
   useDeleteUser,
   useExponents,
@@ -255,7 +259,8 @@ export default function Admin() {
                         {user.businessName}
                       </Badge>
                     )}
-                    <UserShareDialog user={user} />
+                    <UserHistoryDialog user={user} />
+                  <UserShareDialog user={user} />
                     <DeleteUserButton user={user} />
                   </div>
                 </div>
@@ -360,6 +365,48 @@ export default function Admin() {
         />
       )}
     </div>
+  )
+}
+
+/**
+ * Виписка учасника.
+ *
+ * Питання, з яким сюди заходять: звідки в людини ця сума — сама записала,
+ * провів адмін, прийшло переказом. Тому це вся стрічка, а не самі лише
+ * коригування; вигляд у неї той самий, що й у власній історії користувача.
+ *
+ * Запит іде лише коли вікно відкрили: інакше сторінка адміна тягнула б
+ * виписку кожного учасника одразу після завантаження.
+ */
+function UserHistoryDialog({ user }) {
+  const [open, setOpen] = useState(false)
+  const history = useAdminUserTransactions(user.id, open)
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-7 text-muted-foreground"
+          aria-label={`Історія ${user.displayName}`}
+        >
+          <History className="size-4" aria-hidden />
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Історія · {user.displayName}</DialogTitle>
+          <DialogDescription>
+            Що надходило й що списувалося: власні записи, коригування адміністратора, перекази.
+          </DialogDescription>
+        </DialogHeader>
+
+        {history.isLoading && <RowsSkeleton rows={4} />}
+        {history.isError && <ErrorState error={history.error} onRetry={history.refetch} />}
+        {history.data && <MovesList items={history.data.items} />}
+      </DialogContent>
+    </Dialog>
   )
 }
 

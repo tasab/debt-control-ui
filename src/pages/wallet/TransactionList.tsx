@@ -142,16 +142,61 @@ export function TransactionList({ filters = {}, limit, compact = false }) {
   )
 }
 
-function TransactionRow({ item }) {
-  const config = TYPES[item.type] ?? { label: item.type, icon: Receipt }
+/**
+ * Та сама стрічка операцій, але з уже готових рядків.
+ *
+ * Своя виписка ходить по сторінках і веде в деталі операції; чужа — та, яку
+ * дивиться адмін або той, кому дали посилання, — приходить одним шматком і
+ * нікуди не веде. Вигляд у них має бути один, інакше «та сама операція»
+ * виглядала б двома різними речами.
+ */
+// У чужій виписці «вами» — неправда: її читає не той, хто робив запис.
+const FOREIGN_LABELS = {
+  self_topup: 'Записав сам',
+  self_withdrawal: 'Зняв сам',
+}
+
+export function MovesList({ items, className }) {
+  if (!items?.length) {
+    return <p className={cn('text-sm text-muted-foreground', className)}>Операцій поки немає.</p>
+  }
+
+  return (
+    <div className={cn('space-y-4', className)}>
+      {groupByDay(items).map((group) => (
+        <section key={group.key} className="space-y-1.5">
+          <h3 className="text-xs font-medium text-muted-foreground">{group.label}</h3>
+          <ul className="divide-y overflow-hidden rounded-xl border bg-card">
+            {group.items.map((item) => (
+              <TransactionRow key={item.id} item={item} linked={false} foreign />
+            ))}
+          </ul>
+        </section>
+      ))}
+    </div>
+  )
+}
+
+function TransactionRow({ item, linked = true, foreign = false }) {
+  const base = TYPES[item.type] ?? { label: item.type, icon: Receipt }
+  const config = foreign && FOREIGN_LABELS[item.type]
+    ? { ...base, label: FOREIGN_LABELS[item.type] }
+    : base
   const Icon = config.icon
   const incoming = !item.amount.startsWith('-')
+  // Рядок без посилання лишається рядком: та сама сітка, ті самі відступи —
+  // міняється лише те, чи він клікабельний.
+  const Row = linked ? Link : 'div'
+  const rowProps = linked ? { to: `/history/${item.transactionId}` } : {}
 
   return (
     <li>
-      <Link
-        to={`/history/${item.transactionId}`}
-        className="tap flex min-h-16 items-center gap-3 px-3 py-3 transition-colors hover:bg-accent/50 sm:px-4"
+      <Row
+        {...rowProps}
+        className={cn(
+          'flex min-h-16 items-center gap-3 px-3 py-3 sm:px-4',
+          linked && 'tap transition-colors hover:bg-accent/50',
+        )}
       >
         <span
           className={cn(
@@ -178,7 +223,7 @@ function TransactionRow({ item }) {
           signed
           className="shrink-0 text-right font-medium"
         />
-      </Link>
+      </Row>
     </li>
   )
 }

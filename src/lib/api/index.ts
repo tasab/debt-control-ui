@@ -54,6 +54,8 @@ export const business = {
   reverseCashCount: (id) => api.post(`/businesses/me/cash-counts/${id}/reverse`),
   spend: (body, options) => api.post('/businesses/me/spending', body, options),
   monthly: (params) => api.get('/businesses/me/monthly', params),
+  // Прибуток точками: одна на кожне закриття кас і кожну витрату.
+  profitSeries: (params) => api.get('/businesses/me/profit-series', params),
   history: () => api.get('/businesses/me/history'),
   // Учасники — сторона власника.
   members: () => api.get('/businesses/me/members'),
@@ -80,6 +82,8 @@ export const admin = {
   // «Редагування рахунку» — це проведення в журналі, а не UPDATE балансу.
   adjust: (id, body, options) => api.post(`/admin/users/${id}/adjustments`, body, options),
   topUp: (body, options) => api.post('/admin/topups', body, options),
+  // Чужа виписка очима адміна — та сама стрічка, що людина бачить у себе.
+  transactions: (id) => api.get(`/admin/users/${id}/transactions`),
 }
 
 /**

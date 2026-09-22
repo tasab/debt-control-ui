@@ -207,6 +207,13 @@ export const useSpend = () =>
 export const useMonthly = (params = {}) =>
   useQuery({ queryKey: keys.monthly(params), queryFn: () => apis.business.monthly(params) })
 
+/** Графік прибутку: точка на кожну подію, яка його змінила. */
+export const useProfitSeries = (params = {}) =>
+  useQuery({
+    queryKey: ['business', 'profit-series', params],
+    queryFn: () => apis.business.profitSeries(params),
+  })
+
 /** Уся стрічка рухів грошей бізнесу — з журналу проводок. */
 export const useBusinessHistory = (enabled = true) =>
   useQuery({ queryKey: keys.businessHistory, queryFn: apis.business.history, enabled })
@@ -357,6 +364,14 @@ export const useAdminAdjustments = (id) =>
     queryKey: keys.adminAdjustments(id),
     queryFn: () => apis.admin.adjustments(id),
     enabled: !!id,
+  })
+
+/** Виписка учасника в адмінці — запит іде лише коли її відкрили. */
+export const useAdminUserTransactions = (id, enabled) =>
+  useQuery({
+    queryKey: ['admin', 'users', id, 'transactions'],
+    queryFn: () => apis.admin.transactions(id),
+    enabled: Boolean(id) && enabled,
   })
 
 export const useAdjustBalance = () =>

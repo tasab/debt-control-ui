@@ -4,6 +4,7 @@ import { Amount } from '@/components/money/Amount'
 import { Flag } from '@/components/money/Flag'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ThemeToggle } from '@/components/layout/ThemeToggle'
+import { MovesList } from '@/pages/wallet/TransactionList'
 import { useSharedBalance } from '@/lib/hooks'
 
 /**
@@ -11,15 +12,15 @@ import { useSharedBalance } from '@/lib/hooks'
  *
  * Її відкриває той, у кого немає акаунта, тож тут немає ні навігації, ні
  * заклику зареєструватися: людину попросили подивитися на число, а не
- * привели на лендинг. Усе, що є, — одне велике число, розклад по валютах і
- * чесна позначка, що це лише перегляд.
+ * привели на лендинг. Усе, що є, — одне велике число, розклад по валютах,
+ * останні рухи й чесна позначка, що це лише перегляд.
  */
 export default function SharedBalance() {
   const { token } = useParams()
   const query = useSharedBalance(token)
 
   return (
-    <div className="mx-auto flex min-h-[100dvh] max-w-md flex-col justify-center gap-5 px-4 py-10">
+    <div className="mx-auto flex min-h-[100dvh] max-w-md flex-col gap-5 px-4 py-10">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span
@@ -80,6 +81,17 @@ function Balance({ data }) {
             велике число й порожнечу під ним — і не розуміє, звідки воно. */}
         <Breakdown rows={rows} />
       </section>
+
+      {/* Історія тут не для звіряння, а щоб число вгорі не виглядало як
+          твердження без підстав: видно, коли й що приходило й відходило.
+          Імен тих, з ким робилися перекази, у відповіді немає — це чужі
+          люди, і їхньої згоди на це посилання ніхто не давав. */}
+      {data.history?.length > 0 && (
+        <section className="space-y-2">
+          <h2 className="text-sm font-medium text-muted-foreground">Останні рухи</h2>
+          <MovesList items={data.history} />
+        </section>
+      )}
 
       <p className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
         <Eye className="size-3.5" aria-hidden />
