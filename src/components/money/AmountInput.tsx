@@ -17,7 +17,10 @@ export function AmountInput({
   currency,
   className,
   error,
-  placeholder,
+  // Приклад, а не «0.00»: нуль у порожньому полі читається як уже введена
+  // сума, і робота починається з витирання цифр, яких немає. Приклад суми
+  // читається інакше: він сірий і його не сплутаєш із власним вводом.
+  placeholder = '1 500',
   autoFocus,
   id,
   max,
@@ -64,9 +67,6 @@ export function AmountInput({
           id={id}
           value={text}
           onChange={handle}
-          // Порожнє поле лишається порожнім. «0.00» у плейсхолдері читається
-          // як уже введена сума, і людина починає з того, що стирає нулі —
-          // яких насправді немає.
           placeholder={placeholder}
           autoFocus={autoFocus}
           // `decimal` gives phones a keypad with a separator, `text` keeps

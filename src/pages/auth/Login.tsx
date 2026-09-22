@@ -50,6 +50,7 @@ export default function Login() {
               <Input
                 id="email"
                 type="email"
+                placeholder="ivan@example.com"
                 inputMode="email"
                 autoComplete="email"
                 autoCapitalize="none"
@@ -65,6 +66,7 @@ export default function Login() {
               <Input
                 id="password"
                 type="password"
+                placeholder="Ваш пароль"
                 autoComplete="current-password"
                 enterKeyHint="go"
                 {...form.register('password')}

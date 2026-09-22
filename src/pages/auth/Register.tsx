@@ -84,7 +84,12 @@ export default function Register() {
 
             <div className="space-y-2">
               <Label htmlFor="displayName">Ім’я</Label>
-              <Input id="displayName" autoComplete="name" {...form.register('displayName')} />
+              <Input
+                id="displayName"
+                placeholder="Іван Петренко"
+                autoComplete="name"
+                {...form.register('displayName')}
+              />
               <FieldError message={form.formState.errors.displayName?.message} />
             </div>
 
@@ -93,6 +98,7 @@ export default function Register() {
               <Input
                 id="email"
                 type="email"
+                placeholder="ivan@example.com"
                 inputMode="email"
                 autoComplete="email"
                 autoCapitalize="none"
@@ -107,6 +113,7 @@ export default function Register() {
               <Input
                 id="password"
                 type="password"
+                placeholder="Щонайменше 8 символів"
                 autoComplete="new-password"
                 {...form.register('password')}
               />

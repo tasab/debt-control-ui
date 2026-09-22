@@ -23,10 +23,12 @@ export function CurrencySelect({ value, onChange, id, className, only, includeAl
       <SelectContent>
         {includeAll && <SelectItem value={ALL_CURRENCIES}>Усі валюти</SelectItem>}
         {options.map((currency) => (
+          // Тільки код і прапорець: повна назва подвоює ширину рядка й
+          // нічого не додає тому, хто щодня бачить ці ж чотири валюти
+          // (CLAUDE.md).
           <SelectItem key={currency.code} value={currency.code}>
             <Flag code={currency.code} />
             <span className="font-medium">{currency.code}</span>
-            <span className="ml-1 text-muted-foreground">{currency.name}</span>
           </SelectItem>
         ))}
       </SelectContent>

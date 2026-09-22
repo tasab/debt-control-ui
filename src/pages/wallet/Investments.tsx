@@ -179,7 +179,7 @@ function AcceptInvite({ membership }) {
           inputMode="decimal"
           step="0.01"
           min="0"
-          placeholder="0"
+          placeholder="12"
           {...form.register('ratePercent')}
         />
       </div>
@@ -291,7 +291,7 @@ function WithdrawDialog({ membership }) {
             <Label htmlFor={`withdraw-comment-${membership.id}`}>Причина</Label>
             <Input
               id={`withdraw-comment-${membership.id}`}
-              placeholder="Напр. на закупівлю товару"
+              placeholder="На закупівлю товару"
               {...form.register('comment')}
             />
             <FieldError message={form.formState.errors.comment?.message} />

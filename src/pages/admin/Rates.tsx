@@ -83,6 +83,7 @@ function RateRow({ rate }) {
       <Input
         value={bid}
         onChange={(event) => setBid(event.target.value)}
+        placeholder="41.20"
         inputMode="decimal"
         className="h-8 tabular-nums"
         aria-label={`Курс купівлі ${rate.code}`}
@@ -90,6 +91,7 @@ function RateRow({ rate }) {
       <Input
         value={sell}
         onChange={(event) => setSell(event.target.value)}
+        placeholder="41.80"
         inputMode="decimal"
         className="h-8 tabular-nums"
         aria-label={`Курс продажу ${rate.code}`}

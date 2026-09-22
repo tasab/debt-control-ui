@@ -27,6 +27,7 @@ import { AmountInput } from '@/components/money/AmountInput'
 import { CurrencySelect } from '@/components/money/CurrencySelect'
 import { EmptyState, RowsSkeleton } from '@/components/layout/states'
 import { SectionHeader } from '@/components/layout/Section'
+import { ProfitChart } from './ProfitChart.tsx'
 import { FieldError } from '@/pages/auth/Login'
 import { spendingSchema } from '@/lib/schema/forms'
 import { applyServerErrors } from '@/lib/formErrors'
@@ -65,6 +66,10 @@ export function Spending({ showTitle = true }) {
         <SpendDialog kind="expense" />
         <SpendDialog kind="draw" />
       </SectionHeader>
+
+      {/* Графік перший: питання «чи росте заробіток» читається з лінії за
+          секунду, а таблиця по місяцях відповідає на «скільки саме». */}
+      <ProfitChart />
 
       {report.isLoading && <RowsSkeleton rows={3} />}
 
@@ -227,7 +232,7 @@ export const SPEND_KINDS = {
     variant: 'default',
     description:
       'Зарплати, оренда, закупівля. Каса зменшиться, і на цю суму впаде прибуток за місяць.',
-    placeholder: 'Напр. зарплати за вересень',
+    placeholder: 'Зарплати за вересень',
   },
   draw: {
     label: 'Забрати собі',
@@ -236,7 +241,7 @@ export const SPEND_KINDS = {
     variant: 'outline',
     description:
       'Гроші, які ви забрали собі. Каса зменшиться, але прибуток за місяць залишиться таким, яким був — ви його заробили.',
-    placeholder: 'Напр. прибуток за вересень',
+    placeholder: 'Прибуток за вересень',
   },
   capital: {
     label: 'Внести своє',
@@ -245,7 +250,7 @@ export const SPEND_KINDS = {
     variant: 'outline',
     description:
       'Власні гроші в обігу. Якщо приносите їх зараз — каса зросте. Якщо вони вже в касі й перерахунок записав їх виторгом — оберіть «вже в касі», і сума перейде з виторгу у ваш капітал.',
-    placeholder: 'Напр. власні кошти в обіг',
+    placeholder: 'Власні кошти в обіг',
   },
 }
 

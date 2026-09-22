@@ -365,7 +365,7 @@ export function CashCountDialog({ trigger }) {
               <Input
                 id="count-note"
                 className="h-9"
-                placeholder="Напр. інкасація ввечері"
+                placeholder="Інкасація ввечері"
                 {...form.register('note')}
               />
               <FieldError message={form.formState.errors.note?.message} />
