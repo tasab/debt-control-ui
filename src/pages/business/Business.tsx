@@ -8,6 +8,7 @@ import {
   Coins,
   Gauge,
   Minus,
+  Pencil,
   PiggyBank,
   Plus,
   Scale,
@@ -21,8 +22,18 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Amount, AmountBlock } from '@/components/money/Amount'
+import { AmountInput } from '@/components/money/AmountInput'
 import { CurrencySelect } from '@/components/money/CurrencySelect'
 import { CardsSkeleton, ErrorState, RowsSkeleton } from '@/components/layout/states'
 import { SectionHeader } from '@/components/layout/Section'
@@ -30,7 +41,13 @@ import { FieldError } from '@/pages/auth/Login'
 import { businessSchema } from '@/lib/schema/forms'
 import { applyServerErrors } from '@/lib/formErrors'
 import { cn } from '@/lib/utils'
-import { useBusiness, useBusinessHistory, useCreateBusiness, useDashboard } from '@/lib/hooks'
+import {
+  useBusiness,
+  useBusinessHistory,
+  useCreateBusiness,
+  useDashboard,
+  useSetStartingCapital,
+} from '@/lib/hooks'
 import { Registers } from './Registers.tsx'
 import { CashCount, CashCountDialog } from './CashCount.tsx'
 import { Spending, SpendDialog } from './Spending.tsx'
@@ -64,6 +81,93 @@ export default function Business() {
       <Registers />
       <Sections />
     </div>
+  )
+}
+
+/**
+ * Правка стартового капіталу.
+ *
+ * Це число — те, скільки власних грошей було в справі на момент, коли бізнес
+ * завели в систему: журнал тих років не бачив, вивести їх нема з чого. Усе,
+ * що вносилося й забиралося після того, рахується з проводок і додається до
+ * цього числа саме.
+ *
+ * Тому тут легко помилитися двічі: якщо ті самі гроші ще раз записати
+ * внеском, капітал подвоїться, а прибуток провалиться в мінус на ту саму
+ * суму. Про це й сказано у вікні.
+ *
+ * Зберігається датованим рядком, а не перезаписом: змінити капітал заднім
+ * числом і тим переписати вже показаний прибуток за минулий місяць — не те,
+ * що має ставатися непомітно.
+ */
+function CapitalDialog({ capital }) {
+  const [open, setOpen] = useState(false)
+  const save = useSetStartingCapital()
+  const [amount, setAmount] = useState(capital?.amount ?? '')
+  const [currency, setCurrency] = useState(capital?.currency ?? 'UAH')
+
+  const submit = async (event) => {
+    event.preventDefault()
+    if (!amount) return
+    await save.mutateAsync({ amount, currency })
+    setOpen(false)
+  }
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next)
+        if (next) {
+          setAmount(capital?.amount ?? '')
+          setCurrency(capital?.currency ?? 'UAH')
+        }
+      }}
+    >
+      <DialogTrigger asChild>
+        <Button variant="ghost" size="sm" className="h-8 px-2 text-xs text-muted-foreground">
+          <Pencil className="size-3.5" aria-hidden /> Змінити
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Стартовий капітал</DialogTitle>
+          <DialogDescription>
+            Скільки ваших власних грошей було в справі на старті. Внески й вилучення після
+            того рахуються окремо й додаються до цього числа — записувати їх сюди ще раз
+            не треба.
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={submit} className="space-y-4" noValidate>
+          <div className="grid grid-cols-[1fr_7rem] gap-3 sm:grid-cols-[1fr_8rem] sm:gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="capital-amount">Сума</Label>
+              <AmountInput
+                id="capital-amount"
+                currency={currency}
+                value={amount}
+                onChange={(value) => setAmount(value ?? '')}
+                autoFocus
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="capital-currency">Валюта</Label>
+              <CurrencySelect
+                id="capital-currency"
+                className="w-full"
+                value={currency}
+                onChange={setCurrency}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="submit" disabled={save.isPending || !amount}>
+              {save.isPending ? 'Зберігаємо…' : 'Зберегти'}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -389,6 +493,9 @@ function Dashboard() {
                 }
               />
             </div>
+            {/* Стартове число правиться окремо й тихіше за рух грошей: його
+                чіпають раз, коли заводять бізнес, а не щодня. */}
+            <CapitalDialog capital={data.startingCapital} />
           </CardContent>
         </Card>
 
