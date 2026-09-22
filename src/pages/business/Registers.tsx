@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { ArrowLeftRight, ClipboardList, Plus, Trash2, Wallet } from 'lucide-react'
+import { ClipboardList, Plus, Trash2, Wallet } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import {
@@ -15,13 +15,6 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { Amount } from '@/components/money/Amount'
 import { AmountInput } from '@/components/money/AmountInput'
 import { CurrencySelect } from '@/components/money/CurrencySelect'
@@ -30,16 +23,14 @@ import { EmptyState, RowsSkeleton } from '@/components/layout/states'
 import { SectionHeader } from '@/components/layout/Section'
 import { useConfirm } from '@/components/layout/Confirm'
 import { FieldError } from '@/pages/auth/Login'
-import { registerCashSchema, moveFundsSchema } from '@/lib/schema/forms'
+import { registerCashSchema } from '@/lib/schema/forms'
 import { applyServerErrors } from '@/lib/formErrors'
 import { isZero, subtractAmounts } from '@/lib/money'
 import {
   useCountCash,
   useCreateRegister,
   useDeleteRegister,
-  useMoveFunds,
   useRegisters,
-  useWallets,
 } from '@/lib/hooks'
 
 /**
@@ -54,7 +45,6 @@ export function Registers() {
   return (
     <section className="space-y-3">
       <SectionHeader icon={Wallet} title="Каси">
-        <MoveFundsDialog registers={registers.data ?? []} />
         <NewRegisterDialog />
       </SectionHeader>
 
@@ -261,129 +251,3 @@ function NewRegisterDialog() {
   )
 }
 
-/** Owner wallet ↔ business wallet ↔ registers, all through one form. */
-function MoveFundsDialog({ registers }) {
-  const [open, setOpen] = useState(false)
-  const move = useMoveFunds()
-  const { data: wallets = [] } = useWallets()
-
-  const form = useForm({
-    resolver: zodResolver(moveFundsSchema),
-    defaultValues: { from: 'owner', to: 'business', currency: 'UAH', amount: '', comment: '' },
-  })
-  const { from, to, currency, amount } = form.watch()
-
-  const endpoints = [
-    { value: 'owner', label: 'Мій особистий гаманець' },
-    { value: 'business', label: 'Гаманець бізнесу' },
-    // Готівка поза касами — та сама, що перераховується ввечері й куди
-    // заходять кошти учасників. Повертати вклад теж доводиться звідси.
-    { value: 'cash', label: 'Готівка поза касами' },
-    ...registers.map((r) => ({ value: `register:${r.id}`, label: `Каса «${r.name}» (${r.currency})` })),
-  ]
-
-  const onSubmit = form.handleSubmit(async (values) => {
-    try {
-      await move.mutateAsync({
-        body: { ...values, comment: values.comment || undefined },
-        key: crypto.randomUUID(),
-      })
-      form.reset({ ...values, amount: '', comment: '' })
-      setOpen(false)
-    } catch (error) {
-      applyServerErrors(form, error)
-    }
-  })
-
-  return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button size="sm" variant="outline">
-          <ArrowLeftRight className="size-4" aria-hidden /> Перемістити
-        </Button>
-      </DialogTrigger>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Переміщення коштів</DialogTitle>
-          <DialogDescription>
-            Між вашим гаманцем, гаманцем бізнесу й касами. Погашення позик іде з гаманця бізнесу.
-          </DialogDescription>
-        </DialogHeader>
-        <form onSubmit={onSubmit} className="space-y-4" noValidate>
-          <div className="space-y-2">
-            <Label htmlFor="move-from">Звідки</Label>
-            <EndpointSelect
-              id="move-from"
-              value={from}
-              onChange={(value) => form.setValue('from', value)}
-              options={endpoints}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="move-to">Куди</Label>
-            <EndpointSelect
-              id="move-to"
-              value={to}
-              onChange={(value) => form.setValue('to', value)}
-              options={endpoints.filter((e) => e.value !== from)}
-            />
-          </div>
-          <div className="grid grid-cols-[1fr_7rem] gap-3 sm:grid-cols-[1fr_8rem] sm:gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="move-amount">Сума</Label>
-              <AmountInput
-                id="move-amount"
-                currency={currency}
-                value={amount}
-                onChange={(value) => form.setValue('amount', value ?? '', { shouldValidate: true })}
-                error={form.formState.errors.amount?.message}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="move-currency">Валюта</Label>
-              <CurrencySelect
-                id="move-currency"
-                className="w-full"
-                value={currency}
-                onChange={(value) => form.setValue('currency', value)}
-              />
-            </div>
-          </div>
-          {from === 'owner' && (
-            <p className="text-xs text-muted-foreground">
-              Доступно:{' '}
-              <Amount
-                value={wallets.find((w) => w.currency === currency)?.available ?? '0'}
-                currency={currency}
-                size="sm"
-              />
-            </p>
-          )}
-          <FieldError message={form.formState.errors.root?.message} />
-          <DialogFooter>
-            <Button type="submit" disabled={move.isPending}>
-              {move.isPending ? 'Переміщуємо…' : 'Перемістити'}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
-function EndpointSelect({ id, value, onChange, options }) {
-  return (
-    <Select value={value} onValueChange={onChange}>
-      <SelectTrigger id={id}>
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        {options.map((option) => (
-          <SelectItem key={option.value} value={option.value}>
-            {option.label}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  )
-}

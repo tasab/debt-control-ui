@@ -24,16 +24,16 @@ import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Amount, AmountBlock } from '@/components/money/Amount'
 import { CurrencySelect } from '@/components/money/CurrencySelect'
-import { CardsSkeleton, ErrorState } from '@/components/layout/states'
+import { CardsSkeleton, ErrorState, RowsSkeleton } from '@/components/layout/states'
 import { SectionHeader } from '@/components/layout/Section'
-import { ActionTileLabel, actionTileClass } from '@/components/layout/ActionTile'
 import { FieldError } from '@/pages/auth/Login'
 import { businessSchema } from '@/lib/schema/forms'
 import { applyServerErrors } from '@/lib/formErrors'
-import { useBusiness, useCreateBusiness, useDashboard } from '@/lib/hooks'
+import { cn } from '@/lib/utils'
+import { useBusiness, useBusinessHistory, useCreateBusiness, useDashboard } from '@/lib/hooks'
 import { Registers } from './Registers.tsx'
 import { CashCount, CashCountDialog } from './CashCount.tsx'
-import { SPEND_KINDS, Spending, SpendDialog } from './Spending.tsx'
+import { Spending, SpendDialog } from './Spending.tsx'
 import { BusinessHistory } from './History.tsx'
 import { ContributionHistory, Members } from './Members.tsx'
 
@@ -47,14 +47,18 @@ export default function Business() {
 
   return (
     <div className="space-y-6">
-      <div className="min-w-0">
-        <h1 className="truncate text-xl font-semibold tracking-tight sm:text-2xl">
-          {business.data.name}
-        </h1>
-        <p className="truncate text-sm text-muted-foreground">{business.data.description}</p>
+      {/* Перерахунок стоїть у самій шапці, навпроти назви: це щоденна дія,
+          але плиткою на всю ширину вона забирала перший екран у цифр, заради
+          яких сюди й заходять. */}
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="truncate text-xl font-semibold tracking-tight sm:text-2xl">
+            {business.data.name}
+          </h1>
+          <p className="truncate text-sm text-muted-foreground">{business.data.description}</p>
+        </div>
+        <DailyActions />
       </div>
-
-      <DailyActions />
 
       <Dashboard />
       <Registers />
@@ -143,39 +147,93 @@ function Sections() {
 /**
  * Чотири дії, заради яких сюди заходять щодня.
  *
- * Перерахунок кас стояв у шапці, а «Витрата» — дрібною кнопкою всередині
- * вкладки «Заробіток по місяцях». Щоб записати вечірню витрату, треба було
- * догортати до вкладок, перемкнути розділ і поцілити в кнопку завширшки з
- * палець. Це щоденна дія, а не налаштування звіту, тож вона стоїть там само,
- * де перерахунок — одразу під назвою бізнесу і над цифрами, які вона змінює.
+ * Лишився сам перерахунок кас: це те, що роблять щовечора, і стоїть воно
+ * навпроти назви бізнесу — звичайною кнопкою, а не плиткою.
  *
- * Внесок і вилучення власних грошей сюди не входять: вони змінюють саме
- * «Мій капітал», і кнопки стоять на тій картці, де видно число, яке вони
- * рухають.
+ * Витрата живе у вкладці «Заробіток», поряд із виторгом, який вона зменшує;
+ * внесок і вилучення власних грошей — на картці «Мій капітал», бо рухають
+ * саме її.
  */
 function DailyActions() {
-  const expense = SPEND_KINDS.expense
+  return (
+    <CashCountDialog
+      trigger={
+        <Button size="sm" className="shrink-0">
+          <ClipboardList className="size-4" aria-hidden />
+          Порахувати каси
+        </Button>
+      }
+    />
+  )
+}
+
+/**
+ * Що власник вносив і забирав — звичайний список, а не аналітика.
+ *
+ * Питання тут одне: коли я давав і коли брав. Тому рядок — це дата, сума зі
+ * знаком і причина; сальдо рахувати не треба, воно вже стоїть у картці
+ * «Мій капітал» над ним.
+ *
+ * Рухи беруться з того самого журналу, що й «Історія рахунку»: окремого
+ * запиту для них не потрібно, а фільтр по двох типах — два рядки.
+ */
+function OwnMoves({ currency }) {
+  const history = useBusinessHistory()
+  const moves = (history.data ?? [])
+    .filter((move) => move.type === 'business_capital' || move.type === 'business_draw')
+    .slice(0, 12)
 
   return (
-    <div className="grid grid-cols-2 gap-2 sm:gap-3">
-      <CashCountDialog
-        trigger={
-          <button type="button" className={actionTileClass(true)}>
-            <ClipboardList className="size-5" aria-hidden />
-            <ActionTileLabel>Порахувати каси</ActionTileLabel>
-          </button>
-        }
-      />
-      <SpendDialog
-        kind="expense"
-        trigger={
-          <button type="button" className={actionTileClass()}>
-            <expense.icon className="size-5" aria-hidden />
-            <ActionTileLabel>{expense.label}</ActionTileLabel>
-          </button>
-        }
-      />
-    </div>
+    <Card className="min-w-0">
+      <CardHeader className="p-4 pb-2">
+        <CardTitle className="text-sm font-medium text-muted-foreground">
+          Що вносив і забирав
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="p-4 pt-0 text-sm">
+        {history.isLoading && <RowsSkeleton rows={3} />}
+        {!history.isLoading && moves.length === 0 && (
+          <p className="text-muted-foreground">
+            Ще не вносили й не забирали — кнопки під «Моїм капіталом».
+          </p>
+        )}
+        {moves.length > 0 && (
+          <ul className="divide-y">
+            {moves.map((move) => {
+              const incoming = move.type === 'business_capital'
+              // Сума руху — те, що лягло на рахунок капіталу чи вилучення;
+              // решта рядків проводки описують, звідки саме гроші прийшли.
+              const line = move.lines.find(
+                (row) => row.kind === (incoming ? 'business_capital' : 'business_draw'),
+              )
+              if (!line) return null
+              const amount = line.amount.replace('-', '')
+              const date = new Date(move.createdAt)
+
+              return (
+                <li key={move.transactionId} className="flex items-baseline gap-3 py-2">
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate">
+                      {move.comment || (incoming ? 'Внесок' : 'Вилучення')}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {date.toLocaleDateString('uk-UA', { day: 'numeric', month: 'short' })}
+                    </span>
+                  </span>
+                  <Amount
+                    value={incoming ? amount : `-${amount}`}
+                    currency={line.currency ?? currency}
+                    size="sm"
+                    colored
+                    signed
+                  />
+                </li>
+              )
+            })}
+          </ul>
+        )}
+      </CardContent>
+    </Card>
   )
 }
 
@@ -247,33 +305,15 @@ function Dashboard() {
             currency={currency}
             whole
             size="xl"
-            // Проти стартового капіталу — корисно як орієнтир, але число
-            // росте й від самого лише поповнення каси з власної кишені, тож
-            // це підказка, а не прибуток.
-            hint={
-              data.startingCapital ? (
-                <>
-                  Проти старту{' '}
-                  <Amount
-                    value={data.startingCapital.amount}
-                    currency={data.startingCapital.currency}
-                    size="sm"
-                    whole
-                  />
-                  :{' '}
-                  <Amount value={data.profit} currency={currency} size="sm" colored signed whole />
-                </>
-              ) : (
-                'Стартовий капітал не заданий'
-              )
-            }
+            hint="Активи мінус борг перед учасниками" 
           />
         </CardContent>
       </Card>
 
-      {/* Активи мінус зобов’язання дають чисту вартість; мій капітал плюс
-          прибуток дають її ж з іншого боку. Чотири доданки одного числа —
-          в одному ряду, однакового розміру. */}
+      {/* Чотири доданки одного числа в одному ряду: активи мінус
+          зобов’язання дають чисту вартість, а мій капітал плюс прибуток —
+          її ж з іншого боку. Виторгу й витрат тут немає: вони накопичені за
+          місяцями й живуть у вкладці «Заробіток». */}
       <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
         <Card className="border-chart-1/30 bg-chart-1/8">
           <CardContent className="p-4">
@@ -309,25 +349,14 @@ function Dashboard() {
               icon={PiggyBank}
               iconClassName="text-chart-5"
               label="Мій капітал"
-              value={data.startingCapital?.base ?? '0'}
+              // Не стартове число, а скільки моїх грошей у справі зараз:
+              // старт плюс внесене мінус забране. Кнопки під карткою рухають
+              // саме його — інакше внесок з власної кишені додавався б до
+              // прибутку, а число над ними стояло б нерухомо.
+              value={data.equity ?? data.startingCapital?.base ?? '0'}
               currency={currency}
               whole
               showCurrency={false}
-              hint={
-                data.startingCapital ? (
-                  <>
-                    Виставлено{' '}
-                    <Amount
-                      value={data.startingCapital.amount}
-                      currency={data.startingCapital.currency}
-                      size="sm"
-                      whole
-                    />
-                  </>
-                ) : (
-                  'Не задано — весь залишок рахується прибутком'
-                )
-              }
             />
             {/* Гроші власника рухаються тут, біля свого ж числа: «Додати» —
                 внесок у справу, «Забрати» — вилучення. Прибутку це не
@@ -365,9 +394,7 @@ function Dashboard() {
 
         <Card
           className={
-            profitable
-              ? 'border-success/40 bg-success/8'
-              : 'border-destructive/40 bg-destructive/8'
+            profitable ? 'border-success/40 bg-success/8' : 'border-destructive/40 bg-destructive/8'
           }
         >
           <CardContent className="p-4">
@@ -386,32 +413,12 @@ function Dashboard() {
         </Card>
       </div>
 
-      {/* `min-w-0` на картках — не косметика: усередині правої лежить таблиця
-          з власною мінімальною шириною, а колонка гріда за замовчуванням
-          розтягується під найширший вміст. Без цього обидві картки вилазили
-          за екран телефона замість того, щоб таблиця возилася вбік у собі. */}
+      {/* `min-w-0` на картці — не косметика: усередині неї лежить таблиця з
+          власною мінімальною шириною, а колонка гріда за замовчуванням
+          розтягується під найширший вміст. Без цього картка вилазила за
+          екран телефона замість того, щоб таблиця возилася вбік у собі. */}
       <div className="grid gap-2 sm:grid-cols-2">
-        <Card className="min-w-0">
-          <CardHeader className="p-4 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Виторг і витрати
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2 p-4 pt-0">
-            <div className="flex items-baseline justify-between gap-3">
-              <span className="text-sm text-muted-foreground">Виторг</span>
-              <Amount value={data.income} currency={currency} />
-            </div>
-            <div className="flex items-baseline justify-between gap-3">
-              <span className="text-sm text-muted-foreground">Витрати</span>
-              <Amount value={data.expense} currency={currency} />
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Накопичено з перерахунків. Ваші власні гроші сюди не входять — ані коли заходять,
-              ані коли виходять.
-            </p>
-          </CardContent>
-        </Card>
+        <OwnMoves currency={currency} />
 
         <Card className="min-w-0">
           <CardHeader className="p-4 pb-2">
