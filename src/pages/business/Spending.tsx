@@ -33,7 +33,7 @@ import { spendingSchema } from '@/lib/schema/forms'
 import { applyServerErrors } from '@/lib/formErrors'
 import { isZero } from '@/lib/money'
 import { cn } from '@/lib/utils'
-import { useMonthly, useRegisters, useSpend } from '@/lib/hooks'
+import { useCountSheet, useMonthly, useRegisters, useSpend } from '@/lib/hooks'
 
 const MONTHS = [
   'січень', 'лютий', 'березень', 'квітень', 'травень', 'червень',
@@ -263,6 +263,10 @@ export function SpendDialog({ kind, trigger }) {
   const [open, setOpen] = useState(false)
   const spend = useSpend()
   const registers = useRegisters()
+  // Скільки в цьому джерелі лежить: сервер однаково не дасть зняти більше,
+  // але дізнаватися про це з відмови після заповненої форми — пізно.
+  // Запит іде лише коли вікно відкрили.
+  const sheet = useCountSheet(open)
   const preset = SPEND_KINDS[kind]
   const incoming = kind === 'capital'
 
@@ -285,6 +289,19 @@ export function SpendDialog({ kind, trigger }) {
   ]
 
   const reclassifying = incoming && source === 'income'
+
+  // Вилучення й витрата беруть гроші з каси або з готівки; внесок їх туди
+  // кладе, тож ліміту не має — крім «вже в касі», де списується виторг.
+  const available = (() => {
+    if (incoming || reclassifying || !sheet.data) return null
+    if (source === 'cash') {
+      return sheet.data.cash.find((row) => row.currency === currency)?.balance ?? '0'
+    }
+    const id = source.startsWith('register:') ? source.slice('register:'.length) : null
+    return id ? (sheet.data.registers.find((row) => row.id === id)?.balance ?? '0') : null
+  })()
+
+  const tooMuch = available != null && amount ? BigInt(amount) > BigInt(available) : false
 
   const onSubmit = form.handleSubmit(async (values) => {
     try {
@@ -320,7 +337,17 @@ export function SpendDialog({ kind, trigger }) {
                 currency={currency}
                 value={amount}
                 onChange={(value) => form.setValue('amount', value ?? '', { shouldValidate: true })}
-                error={form.formState.errors.amount?.message}
+                max={available ?? undefined}
+                onMax={
+                  available
+                    ? (value) => form.setValue('amount', value, { shouldValidate: true })
+                    : undefined
+                }
+                error={
+                  tooMuch
+                    ? 'Більше, ніж є в цьому джерелі'
+                    : form.formState.errors.amount?.message
+                }
               />
             </div>
             <div className="space-y-2">
@@ -354,6 +381,11 @@ export function SpendDialog({ kind, trigger }) {
               </SelectContent>
             </Select>
             <FieldError message={form.formState.errors.source?.message} />
+            {available != null && (
+              <p className="text-xs text-muted-foreground">
+                Доступно: <Amount value={available} currency={currency} size="sm" />
+              </p>
+            )}
             {reclassifying && (
               <p className="text-xs text-muted-foreground">
                 Каса не зміниться — гроші вже в ній. Зменшиться лише виторг, а з ним і прибуток:
@@ -374,7 +406,7 @@ export function SpendDialog({ kind, trigger }) {
 
           <FieldError message={form.formState.errors.root?.message} />
           <DialogFooter>
-            <Button type="submit" disabled={spend.isPending}>
+            <Button type="submit" disabled={spend.isPending || tooMuch}>
               {spend.isPending ? 'Записуємо…' : 'Записати'}
             </Button>
           </DialogFooter>
