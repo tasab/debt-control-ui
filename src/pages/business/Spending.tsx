@@ -33,7 +33,7 @@ import { spendingSchema } from '@/lib/schema/forms'
 import { applyServerErrors } from '@/lib/formErrors'
 import { isZero } from '@/lib/money'
 import { cn } from '@/lib/utils'
-import { useCountSheet, useMonthly, useRegisters, useSpend } from '@/lib/hooks'
+import { useConverter, useCountSheet, useMonthly, useRegisters, useSpend } from '@/lib/hooks'
 
 const MONTHS = [
   'січень', 'лютий', 'березень', 'квітень', 'травень', 'червень',
@@ -267,6 +267,7 @@ export function SpendDialog({ kind, trigger }) {
   // але дізнаватися про це з відмови після заповненої форми — пізно.
   // Запит іде лише коли вікно відкрили.
   const sheet = useCountSheet(open)
+  const convert = useConverter()
   const preset = SPEND_KINDS[kind]
   const incoming = kind === 'capital'
 
@@ -283,32 +284,47 @@ export function SpendDialog({ kind, trigger }) {
   })
   const { source, currency, amount } = form.watch()
 
+  // Джерела всіх валют, а не лише тієї, у якій рахують: «забрав тисячу
+  // доларів» часто означає гривні з каси за курсом, і змушувати людину
+  // спершу перевести суму в голові — зайва робота.
   const sources = [
     // Для внеску є ще один «звідки»: гроші вже в касі, просто перерахунок
     // записав їх виторгом. Тоді нічого не рухається, крім класифікації.
-    ...(incoming
-      ? [{ value: 'income', label: 'Вже в касі — списати з виторгу' }]
-      : []),
-    { value: 'cash', label: `Готівка поза касами (${currency})` },
-    ...(registers.data ?? [])
-      .filter((r) => r.currency === currency)
-      .map((r) => ({ value: `register:${r.id}`, label: `Каса «${r.name}»` })),
+    ...(incoming ? [{ value: 'income', label: 'Вже в касі — списати з виторгу' }] : []),
+    { value: 'cash', label: `Готівка поза касами (${currency})`, currency },
+    ...(sheet.data?.cash ?? [])
+      .filter((row) => row.currency !== currency && row.balance !== '0')
+      .map((row) => ({
+        value: `cash:${row.currency}`,
+        label: `Готівка поза касами (${row.currency})`,
+        currency: row.currency,
+      })),
+    ...(registers.data ?? []).map((r) => ({
+      value: `register:${r.id}`,
+      label: `Каса «${r.name}» (${r.currency})`,
+      currency: r.currency,
+    })),
   ]
 
   const reclassifying = incoming && source === 'income'
+  const sourceCurrency = sources.find((option) => option.value === source)?.currency ?? currency
+
+  // Скільки насправді зрушить у касі: якщо джерело в іншій валюті, сума
+  // перераховується за середнім курсом — тим самим, яким рахує сервер.
+  const moved = sourceCurrency === currency ? amount : convert(amount, currency, sourceCurrency)
 
   // Вилучення й витрата беруть гроші з каси або з готівки; внесок їх туди
   // кладе, тож ліміту не має — крім «вже в касі», де списується виторг.
   const available = (() => {
     if (incoming || reclassifying || !sheet.data) return null
-    if (source === 'cash') {
-      return sheet.data.cash.find((row) => row.currency === currency)?.balance ?? '0'
+    if (source.startsWith('register:')) {
+      const id = source.slice('register:'.length)
+      return sheet.data.registers.find((row) => row.id === id)?.balance ?? '0'
     }
-    const id = source.startsWith('register:') ? source.slice('register:'.length) : null
-    return id ? (sheet.data.registers.find((row) => row.id === id)?.balance ?? '0') : null
+    return sheet.data.cash.find((row) => row.currency === sourceCurrency)?.balance ?? '0'
   })()
 
-  const tooMuch = available != null && amount ? BigInt(amount) > BigInt(available) : false
+  const tooMuch = available != null && moved ? BigInt(moved) > BigInt(available) : false
 
   const onSubmit = form.handleSubmit(async ({ occurredOn, ...values }) => {
     try {
@@ -359,16 +375,14 @@ export function SpendDialog({ kind, trigger }) {
                 currency={currency}
                 value={amount}
                 onChange={(value) => form.setValue('amount', value ?? '', { shouldValidate: true })}
-                max={available ?? undefined}
+                max={sourceCurrency === currency ? (available ?? undefined) : undefined}
                 onMax={
-                  available
+                  available && sourceCurrency === currency
                     ? (value) => form.setValue('amount', value, { shouldValidate: true })
                     : undefined
                 }
                 error={
-                  tooMuch
-                    ? 'Більше, ніж є в цьому джерелі'
-                    : form.formState.errors.amount?.message
+                  tooMuch ? 'Більше, ніж є в цьому джерелі' : form.formState.errors.amount?.message
                 }
               />
             </div>
@@ -378,12 +392,7 @@ export function SpendDialog({ kind, trigger }) {
                 id={`spend-currency-${kind}`}
                 className="w-full"
                 value={currency}
-                onChange={(value) => {
-                  form.setValue('currency', value)
-                  // Каса іншої валюти зникає зі списку — джерело скидається,
-                  // щоб не лишитись з вибраним, чого вже немає.
-                  form.setValue('source', 'cash')
-                }}
+                onChange={(value) => form.setValue('currency', value)}
               />
             </div>
           </div>
@@ -405,7 +414,12 @@ export function SpendDialog({ kind, trigger }) {
             <FieldError message={form.formState.errors.source?.message} />
             {available != null && (
               <p className="text-xs text-muted-foreground">
-                Доступно: <Amount value={available} currency={currency} size="sm" />
+                Доступно: <Amount value={available} currency={sourceCurrency} size="sm" />
+                {sourceCurrency !== currency && moved && (
+                  <>
+                    {' · '}спишеться ≈ <Amount value={moved} currency={sourceCurrency} size="sm" />
+                  </>
+                )}
               </p>
             )}
             {reclassifying && (

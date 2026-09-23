@@ -76,6 +76,38 @@ export function useExponents() {
   return Object.fromEntries((data ?? []).map((c) => [c.code, c.exponent]))
 }
 
+/**
+ * Перерахунок між валютами за середнім курсом — тим самим, яким сервер
+ * оцінює підсумки.
+ *
+ * Клієнт нічого не проводить: це лише підказка «скільки це буде», щоб людина
+ * бачила суму до того, як натисне. Остаточне число рахує сервер, і воно може
+ * розійтися на копійку через округлення — тому в інтерфейсі воно стоїть із
+ * «≈».
+ *
+ * Курси приходять рядками («44.500000») і котируються до базової валюти, а
+ * сама вона в стрічці відсутня — її курс до себе дорівнює одиниці.
+ */
+export function useConverter() {
+  const { data: rates = [] } = useRates()
+  const { data: currencies = [] } = useCurrencies()
+  const pivot = currencies.find((c) => c.isBase)?.code
+  const exponents = Object.fromEntries(currencies.map((c) => [c.code, c.exponent]))
+  const mid = new Map(rates.map((r) => [r.code, (Number(r.bid) + Number(r.sell)) / 2]))
+
+  const rateOf = (code) => (code === pivot ? 1 : mid.get(code))
+
+  return (amount, from, to) => {
+    if (amount == null || amount === '') return null
+    if (from === to) return amount
+    const rateFrom = rateOf(from)
+    const rateTo = rateOf(to)
+    if (!rateFrom || !rateTo) return null
+    const scale = 10 ** ((exponents[to] ?? 2) - (exponents[from] ?? 2))
+    return String(Math.round((Number(amount) * rateFrom * scale) / rateTo))
+  }
+}
+
 // ─── Wallet ─────────────────────────────────────────────────────────────────
 
 export const useWallets = () => useQuery({ queryKey: keys.wallets, queryFn: apis.wallets.list })
