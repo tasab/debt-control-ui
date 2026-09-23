@@ -23,6 +23,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import {
   Dialog,
   DialogContent,
@@ -48,7 +49,9 @@ import {
   useBusinessHistory,
   useCancelOwnerMove,
   useCreateBusiness,
+  useCurrencies,
   useDashboard,
+  useRates,
   useSetStartingCapital,
 } from '@/lib/hooks'
 import { Registers } from './Registers.tsx'
@@ -56,6 +59,7 @@ import { CashCount, CashCountDialog } from './CashCount.tsx'
 import { Spending, SpendDialog } from './Spending.tsx'
 import { BusinessHistory } from './History.tsx'
 import { ContributionHistory, Members } from './Members.tsx'
+import { BusinessCurrencyProvider, useBusinessCurrency } from './currency.tsx'
 
 export default function Business() {
   const business = useBusiness()
@@ -66,24 +70,29 @@ export default function Business() {
   if (business.isError) return <ErrorState error={business.error} onRetry={business.refetch} />
 
   return (
-    <div className="space-y-6">
-      {/* Перерахунок стоїть у самій шапці, навпроти назви: це щоденна дія,
+    // Валюта показу спільна для всієї сторінки: підсумки, графік прибутку й
+    // таблиця по місяцях мають рахуватися в одному, інакше числа на сусідніх
+    // картках не порівняти.
+    <BusinessCurrencyProvider>
+      <div className="space-y-6">
+        {/* Перерахунок стоїть у самій шапці, навпроти назви: це щоденна дія,
           але плиткою на всю ширину вона забирала перший екран у цифр, заради
           яких сюди й заходять. */}
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h1 className="truncate text-xl font-semibold tracking-tight sm:text-2xl">
-            {business.data.name}
-          </h1>
-          <p className="truncate text-sm text-muted-foreground">{business.data.description}</p>
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h1 className="truncate text-xl font-semibold tracking-tight sm:text-2xl">
+              {business.data.name}
+            </h1>
+            <p className="truncate text-sm text-muted-foreground">{business.data.description}</p>
+          </div>
+          <DailyActions />
         </div>
-        <DailyActions />
-      </div>
 
-      <Dashboard />
-      <Registers />
-      <Sections />
-    </div>
+        <Dashboard />
+        <Registers />
+        <Sections />
+      </div>
+    </BusinessCurrencyProvider>
   )
 }
 
@@ -136,9 +145,8 @@ function CapitalDialog({ capital }) {
         <DialogHeader>
           <DialogTitle>Стартовий капітал</DialogTitle>
           <DialogDescription>
-            Скільки ваших власних грошей було в справі на старті. Внески й вилучення після
-            того рахуються окремо й додаються до цього числа — записувати їх сюди ще раз
-            не треба.
+            Скільки ваших власних грошей було в справі на старті. Внески й вилучення після того
+            рахуються окремо й додаються до цього числа — записувати їх сюди ще раз не треба.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} className="space-y-4" noValidate>
@@ -303,9 +311,7 @@ function OwnMoves({ currency }) {
     .slice(0, 12)
   // Що вже скасовано: зустрічна проводка посилається на оригінал, і кнопку в
   // нього треба прибрати, а сам рядок — притишити.
-  const cancelled = new Set(
-    (history.data ?? []).map((move) => move.reversalOf).filter(Boolean),
-  )
+  const cancelled = new Set((history.data ?? []).map((move) => move.reversalOf).filter(Boolean))
 
   return (
     <Card className="min-w-0">
@@ -342,11 +348,7 @@ function OwnMoves({ currency }) {
                   <span className="min-w-0 flex-1">
                     <span className={cn('block truncate', undone && 'line-through opacity-60')}>
                       {move.comment ||
-                        (isCancel
-                          ? 'Скасування'
-                          : delta.startsWith('-')
-                            ? 'Вилучення'
-                            : 'Внесок')}
+                        (isCancel ? 'Скасування' : delta.startsWith('-') ? 'Вилучення' : 'Внесок')}
                     </span>
                     <span className="text-xs text-muted-foreground">
                       {date.toLocaleDateString('uk-UA', { day: 'numeric', month: 'short' })}
@@ -394,11 +396,75 @@ function OwnMoves({ currency }) {
   )
 }
 
+/**
+ * Курси, за якими рахуються підсумки.
+ *
+ * Питання «чому тут ця цифра» майже завжди впирається в курс, а курс лежав
+ * на окремій сторінці — треба було піти, подивитися й повернутися. Тепер він
+ * поруч із перемикачем валюти, під тією ж рукою.
+ *
+ * Показується середній між купівлею і продажем: саме ним сервер оцінює все,
+ * що лежить не в базовій валюті. Курс, який давно не оновлювали, підписаний
+ * окремо — інакше застаріле число виглядало б таким самим надійним.
+ */
+function RatesHint({ base, stale }) {
+  const [open, setOpen] = useState(false)
+  const { data: rates = [] } = useRates()
+  const { data: currencies = [] } = useCurrencies()
+  const pivot = currencies.find((item) => item.isBase)?.code
+
+  if (rates.length === 0) return null
+
+  const mid = (rate) => ((Number(rate.bid) + Number(rate.sell)) / 2).toFixed(2)
+
+  return (
+    <Tooltip open={open} onOpenChange={setOpen}>
+      <TooltipTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-9 px-2 text-muted-foreground sm:h-8"
+          aria-label="Курси, за якими рахуються підсумки"
+          onClick={() => setOpen((value) => !value)}
+        >
+          <Coins className="size-4" aria-hidden />
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent align="end">
+        <p className="mb-1.5 font-medium">Рахуємо за середнім курсом</p>
+        <ul className="space-y-0.5 tabular-nums">
+          {[...rates]
+            .sort((a, b) => a.code.localeCompare(b.code))
+            .map((rate) => (
+              <li key={rate.code} className="flex items-baseline justify-between gap-4">
+                <span>
+                  1 {rate.code}
+                  {stale.includes(rate.code) && (
+                    <span className="ml-1 text-amber-600 dark:text-amber-400">застарілий</span>
+                  )}
+                </span>
+                <span>
+                  {mid(rate)} {pivot}
+                </span>
+              </li>
+            ))}
+        </ul>
+        {base !== pivot && (
+          <p className="mt-1.5 text-muted-foreground">
+            Показ у {base} — перерахунок через {pivot} за цими ж курсами.
+          </p>
+        )}
+      </TooltipContent>
+    </Tooltip>
+  )
+}
+
 function Dashboard() {
-  // Валюта показу живе тут, а не в URL: це спосіб подивитись на ті самі гроші,
-  // а не окрема сторінка. Сервер перераховує підсумки за середнім курсом —
-  // клієнт нічого не конвертує (CLIENT_PLAN §0).
-  const [displayCurrency, setDisplayCurrency] = useState(null)
+  // Валюта показу живе в браузері, а не в URL: це спосіб подивитись на ті
+  // самі гроші, а не окрема сторінка. Сервер перераховує підсумки за середнім
+  // курсом — клієнт нічого не конвертує (CLIENT_PLAN §0).
+  const { currency: displayCurrency, setCurrency: setDisplayCurrency } = useBusinessCurrency()
   const dashboard = useDashboard(displayCurrency)
 
   if (dashboard.isLoading) return <CardsSkeleton />
@@ -420,12 +486,16 @@ function Dashboard() {
           value={currency}
           onChange={setDisplayCurrency}
         />
+        <RatesHint base={currency} stale={data.staleCodes ?? []} />
         {/* Журнал стоїть біля підсумків, а не в картці капіталу власника: це
             історія грошей усього бізнесу, і шукають її поруч із тим числом,
             яке хочуть пояснити. */}
         <BusinessHistory />
         {data.staleCodes?.length > 0 && (
-          <Badge variant="outline" className="gap-1 border-amber-500/40 text-amber-600 dark:text-amber-400">
+          <Badge
+            variant="outline"
+            className="gap-1 border-amber-500/40 text-amber-600 dark:text-amber-400"
+          >
             <TriangleAlert className="size-3" aria-hidden />
             Застарілий курс: {data.staleCodes.join(', ')}
           </Badge>
@@ -462,7 +532,7 @@ function Dashboard() {
             currency={currency}
             whole
             size="xl"
-            hint="Активи мінус борг перед учасниками" 
+            hint="Активи мінус борг перед учасниками"
           />
         </CardContent>
       </Card>
@@ -586,11 +656,11 @@ function Dashboard() {
               У розрізі валют
             </CardTitle>
           </CardHeader>
-        <CardContent className="space-y-2 p-4 pt-0 text-sm">
-          {data.byCurrency.length === 0 && (
-            <p className="text-muted-foreground">Ще немає рухів коштів.</p>
-          )}
-          {/* Суми лишаються у своїй валюті: перемикач угорі міняє валюту
+          <CardContent className="space-y-2 p-4 pt-0 text-sm">
+            {data.byCurrency.length === 0 && (
+              <p className="text-muted-foreground">Ще немає рухів коштів.</p>
+            )}
+            {/* Суми лишаються у своїй валюті: перемикач угорі міняє валюту
               підсумків, а не цієї таблиці — тут видно, що саме лежить.
 
               На телефоні кожна валюта — окремий блок, а не рядок таблиці.
@@ -599,69 +669,92 @@ function Dashboard() {
               саме воно на iOS відкидало сторінку назад до цієї секції при
               скролі вгору. Блоки нічого вбік не возять — і відкидати
               більше нема чому. */}
-          {data.byCurrency.length > 0 && (
-            <div className="space-y-2 sm:hidden">
-              {data.byCurrency.map((row) => {
-                const parts = [
-                  { label: 'Каси', value: row.registers },
-                  { label: 'Готівка', value: row.cash },
-                  { label: 'Гаманці', value: row.wallets },
-                  { label: 'Борг', value: row.debt },
-                ].filter((part) => part.value !== '0')
+            {data.byCurrency.length > 0 && (
+              <div className="space-y-2 sm:hidden">
+                {data.byCurrency.map((row) => {
+                  const parts = [
+                    { label: 'Каси', value: row.registers },
+                    { label: 'Готівка', value: row.cash },
+                    { label: 'Гаманці', value: row.wallets },
+                    { label: 'Борг', value: row.debt },
+                  ].filter((part) => part.value !== '0')
 
-                return (
-                  <div key={row.currency} className="rounded-lg border p-3">
-                    <p className="font-medium">{row.currency}</p>
-                    <dl className="mt-1.5 grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
-                      {parts.map((part) => (
-                        <div key={part.label} className="flex items-baseline justify-between gap-2">
-                          <dt className="text-muted-foreground">{part.label}</dt>
-                          <dd>
-                            <Amount
-                              value={part.value}
-                              currency={row.currency}
-                              size="sm"
-                              showCurrency={false}
-                            />
-                          </dd>
-                        </div>
-                      ))}
-                    </dl>
-                  </div>
-                )
-              })}
-            </div>
-          )}
+                  return (
+                    <div key={row.currency} className="rounded-lg border p-3">
+                      <p className="font-medium">{row.currency}</p>
+                      <dl className="mt-1.5 grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                        {parts.map((part) => (
+                          <div
+                            key={part.label}
+                            className="flex items-baseline justify-between gap-2"
+                          >
+                            <dt className="text-muted-foreground">{part.label}</dt>
+                            <dd>
+                              <Amount
+                                value={part.value}
+                                currency={row.currency}
+                                size="sm"
+                                showCurrency={false}
+                              />
+                            </dd>
+                          </div>
+                        ))}
+                      </dl>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
 
-          {data.byCurrency.length > 0 && (
-            <div className="no-scrollbar -mx-4 hidden overflow-x-auto overscroll-x-contain px-4 sm:block">
-            <div className="grid min-w-[26rem] grid-cols-[auto_1fr_1fr_1fr_1fr] gap-x-4 gap-y-1.5">
-              <span />
-              <span className="text-right text-xs text-muted-foreground">Каси</span>
-              <span className="text-right text-xs text-muted-foreground">Готівка</span>
-              <span className="text-right text-xs text-muted-foreground">Гаманці</span>
-              <span className="text-right text-xs text-muted-foreground">Борг</span>
-              {data.byCurrency.map((row) => (
-                <Fragment key={row.currency}>
-                  <span className="font-medium">{row.currency}</span>
-                  <span className="text-right">
-                    <Amount value={row.registers} currency={row.currency} size="sm" showCurrency={false} />
-                  </span>
-                  <span className="text-right">
-                    <Amount value={row.cash} currency={row.currency} size="sm" showCurrency={false} />
-                  </span>
-                  <span className="text-right">
-                    <Amount value={row.wallets} currency={row.currency} size="sm" showCurrency={false} />
-                  </span>
-                  <span className="text-right">
-                    <Amount value={row.debt} currency={row.currency} size="sm" showCurrency={false} />
-                  </span>
-                </Fragment>
-              ))}
-            </div>
-            </div>
-          )}
-        </CardContent>
+            {data.byCurrency.length > 0 && (
+              <div className="no-scrollbar -mx-4 hidden overflow-x-auto overscroll-x-contain px-4 sm:block">
+                <div className="grid min-w-[26rem] grid-cols-[auto_1fr_1fr_1fr_1fr] gap-x-4 gap-y-1.5">
+                  <span />
+                  <span className="text-right text-xs text-muted-foreground">Каси</span>
+                  <span className="text-right text-xs text-muted-foreground">Готівка</span>
+                  <span className="text-right text-xs text-muted-foreground">Гаманці</span>
+                  <span className="text-right text-xs text-muted-foreground">Борг</span>
+                  {data.byCurrency.map((row) => (
+                    <Fragment key={row.currency}>
+                      <span className="font-medium">{row.currency}</span>
+                      <span className="text-right">
+                        <Amount
+                          value={row.registers}
+                          currency={row.currency}
+                          size="sm"
+                          showCurrency={false}
+                        />
+                      </span>
+                      <span className="text-right">
+                        <Amount
+                          value={row.cash}
+                          currency={row.currency}
+                          size="sm"
+                          showCurrency={false}
+                        />
+                      </span>
+                      <span className="text-right">
+                        <Amount
+                          value={row.wallets}
+                          currency={row.currency}
+                          size="sm"
+                          showCurrency={false}
+                        />
+                      </span>
+                      <span className="text-right">
+                        <Amount
+                          value={row.debt}
+                          currency={row.currency}
+                          size="sm"
+                          showCurrency={false}
+                        />
+                      </span>
+                    </Fragment>
+                  ))}
+                </div>
+              </div>
+            )}
+          </CardContent>
         </Card>
       </div>
     </section>

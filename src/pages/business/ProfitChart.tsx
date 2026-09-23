@@ -11,6 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { EmptyState, ErrorState, RowsSkeleton } from '@/components/layout/states'
 import { formatAmount } from '@/lib/money'
 import { useProfitSeries } from '@/lib/hooks'
+import { useBusinessCurrency } from './currency.tsx'
 
 /**
  * Прибуток від закриття до закриття.
@@ -24,7 +25,10 @@ import { useProfitSeries } from '@/lib/hooks'
  * б поступове зростання в дні, коли касу взагалі не рахували.
  */
 export function ProfitChart() {
-  const series = useProfitSeries()
+  // Валюта показу спільна зі станом бізнесу — графік і картки мають говорити
+  // про одні й ті самі гроші.
+  const { currency: displayCurrency } = useBusinessCurrency()
+  const series = useProfitSeries(displayCurrency ? { in: displayCurrency } : {})
   const currency = series.data?.baseCurrency ?? 'UAH'
 
   return (

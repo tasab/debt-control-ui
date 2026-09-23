@@ -28,6 +28,7 @@ import { CurrencySelect } from '@/components/money/CurrencySelect'
 import { EmptyState, RowsSkeleton } from '@/components/layout/states'
 import { SectionHeader } from '@/components/layout/Section'
 import { ProfitChart } from './ProfitChart.tsx'
+import { useBusinessCurrency } from './currency.tsx'
 import { FieldError } from '@/pages/auth/Login'
 import { spendingSchema } from '@/lib/schema/forms'
 import { applyServerErrors } from '@/lib/formErrors'
@@ -57,7 +58,10 @@ const monthLabel = (key) => {
  * наприкінці місяця каса на ці числа не впливає.
  */
 export function Spending({ showTitle = true }) {
-  const report = useMonthly()
+  // Та сама валюта, що й у підсумках згори: дивитися на прибуток у доларах,
+  // а на місяці в гривні — найкоротший шлях порахувати щось не те.
+  const { currency: displayCurrency } = useBusinessCurrency()
+  const report = useMonthly(displayCurrency ? { in: displayCurrency } : {})
 
   return (
     <section className="space-y-3">
