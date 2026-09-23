@@ -31,6 +31,13 @@ import { Textarea } from '@/components/ui/textarea'
 import { UserShareDialog } from '@/pages/wallet/ShareBalance'
 import { MovesList } from '@/pages/wallet/TransactionList'
 import { Amount } from '@/components/money/Amount'
+import { Flag } from '@/components/money/Flag'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+} from '@/components/ui/select'
 import { AmountInput } from '@/components/money/AmountInput'
 import { EmptyState, ErrorState, RowsSkeleton } from '@/components/layout/states'
 import { FieldError } from '@/pages/auth/Login'
@@ -156,12 +163,26 @@ const balanceRows = (user) => {
   })
 }
 
+/**
+ * Показувати нулі немає сенсу: у людини активних валют одна-дві, а список
+ * усіх — це вісім рядків, серед яких треба знайти потрібний. Але додати
+ * валюту комусь треба саме тоді, коли її ще немає, тож порожній рядок
+ * з'являється на вимогу.
+ */
+const visibleRows = (user, shown = []) =>
+  balanceRows(user).filter(
+    (row) => row.available !== '0' || row.held !== '0' || shown.includes(row.currency),
+  )
+
 export default function Admin() {
   const [search, setSearch] = useState('')
   const users = useAdminUsers(search)
   // Розгорнутий учасник — один: відкритих карток більше однієї не буває, бо
   // правлять завжди чийсь один рахунок.
   const [openId, setOpenId] = useState(null)
+  // Валюти з нулем, які адмін попросив показати, — по набору на учасника.
+  // Живуть у пам'яті сторінки: це не налаштування, а «зараз мені треба».
+  const [shown, setShown] = useState({})
   // Яку валюту якого учасника зараз редагуємо і якою дією — null, поки діалог
   // закритий.
   const [editing, setEditing] = useState<{
@@ -269,7 +290,7 @@ export default function Admin() {
               {open && (
                 <CardContent>
                   <ul className="divide-y">
-                    {balanceRows(user).map((row) => (
+                    {visibleRows(user, shown[user.id]).map((row) => (
                       <li
                         key={row.key}
                         className="flex flex-wrap items-center justify-between gap-3 py-2.5"
@@ -348,6 +369,19 @@ export default function Admin() {
                       </li>
                     ))}
                   </ul>
+
+                  <AddCurrency
+                    hidden={balanceRows(user)
+                      .filter((row) => row.available === '0' && row.held === '0')
+                      .map((row) => row.currency)
+                      .filter((code) => !(shown[user.id] ?? []).includes(code))}
+                    onPick={(code) =>
+                      setShown((current) => ({
+                        ...current,
+                        [user.id]: [...(current[user.id] ?? []), code],
+                      }))
+                    }
+                  />
                 </CardContent>
               )}
             </Card>
@@ -365,6 +399,36 @@ export default function Admin() {
         />
       )}
     </div>
+  )
+}
+
+/**
+ * Додати валюту, якої в людини ще немає.
+ *
+ * Рахунок не створюється — він з'явиться сам разом із першою проводкою.
+ * Тут лише показується порожній рядок, щоб було куди натиснути «Додати».
+ */
+function AddCurrency({ hidden, onPick }) {
+  if (hidden.length === 0) return null
+
+  return (
+    <Select value="" onValueChange={onPick}>
+      <SelectTrigger
+        className="mt-2 h-8 w-auto gap-1.5 border-dashed text-xs text-muted-foreground"
+        aria-label="Показати ще валюту"
+      >
+        <Plus className="size-3.5" aria-hidden />
+        Валюта
+      </SelectTrigger>
+      <SelectContent>
+        {hidden.map((code) => (
+          <SelectItem key={code} value={code}>
+            <Flag code={code} />
+            <span className="font-medium">{code}</span>
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   )
 }
 
