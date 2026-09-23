@@ -272,7 +272,14 @@ export function SpendDialog({ kind, trigger }) {
 
   const form = useForm({
     resolver: zodResolver(spendingSchema),
-    defaultValues: { kind, source: 'cash', currency: 'UAH', amount: '', comment: '' },
+    defaultValues: {
+      kind,
+      source: 'cash',
+      currency: 'UAH',
+      amount: '',
+      comment: '',
+      occurredOn: '',
+    },
   })
   const { source, currency, amount } = form.watch()
 
@@ -303,10 +310,25 @@ export function SpendDialog({ kind, trigger }) {
 
   const tooMuch = available != null && amount ? BigInt(amount) > BigInt(available) : false
 
-  const onSubmit = form.handleSubmit(async (values) => {
+  const onSubmit = form.handleSubmit(async ({ occurredOn, ...values }) => {
     try {
-      await spend.mutateAsync({ body: values, key: crypto.randomUUID() })
-      form.reset({ kind, source: 'cash', currency: values.currency, amount: '', comment: '' })
+      await spend.mutateAsync({
+        body: {
+          ...values,
+          // Опівдні, а не опівночі: дата, зсунута часовим поясом, інакше
+          // стрибає на день назад у всіх, хто західніше Гринвіча.
+          ...(occurredOn ? { occurredAt: new Date(`${occurredOn}T12:00:00`).toISOString() } : {}),
+        },
+        key: crypto.randomUUID(),
+      })
+      form.reset({
+        kind,
+        source: 'cash',
+        currency: values.currency,
+        amount: '',
+        comment: '',
+        occurredOn: '',
+      })
       setOpen(false)
     } catch (error) {
       applyServerErrors(form, error)
@@ -392,6 +414,14 @@ export function SpendDialog({ kind, trigger }) {
                 ці кошти ви не заробили, а принесли.
               </p>
             )}
+          </div>
+
+          <div className="space-y-2">
+            {/* Дата події, а не запису: витрату за минулий вівторок вносять у
+                четвер, і в звіті вона має стояти вівторком. Порожньо —
+                значить сьогодні. */}
+            <Label htmlFor={`spend-date-${kind}`}>Дата</Label>
+            <Input id={`spend-date-${kind}`} type="date" {...form.register('occurredOn')} />
           </div>
 
           <div className="space-y-2">

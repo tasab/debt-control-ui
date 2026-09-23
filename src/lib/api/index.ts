@@ -53,6 +53,8 @@ export const business = {
   countCash: (body, options) => api.post('/businesses/me/cash-counts', body, options),
   reverseCashCount: (id) => api.post(`/businesses/me/cash-counts/${id}/reverse`),
   spend: (body, options) => api.post('/businesses/me/spending', body, options),
+  // Скасування помилкового внеску чи вилучення — зустрічною проводкою.
+  cancelOwnerMove: (id) => api.post(`/businesses/me/owner-moves/${id}/cancel`, {}),
   monthly: (params) => api.get('/businesses/me/monthly', params),
   // Прибуток точками: одна на кожне закриття кас і кожну витрату.
   profitSeries: (params) => api.get('/businesses/me/profit-series', params),

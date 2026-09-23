@@ -11,6 +11,7 @@ import {
   Pencil,
   PiggyBank,
   Plus,
+  Undo2,
   Scale,
   TrendingUp,
   TriangleAlert,
@@ -41,9 +42,11 @@ import { FieldError } from '@/pages/auth/Login'
 import { businessSchema } from '@/lib/schema/forms'
 import { applyServerErrors } from '@/lib/formErrors'
 import { cn } from '@/lib/utils'
+import { useConfirm } from '@/components/layout/Confirm'
 import {
   useBusiness,
   useBusinessHistory,
+  useCancelOwnerMove,
   useCreateBusiness,
   useDashboard,
   useSetStartingCapital,
@@ -281,11 +284,28 @@ function DailyActions() {
  * Рухи беруться з того самого журналу, що й «Історія рахунку»: окремого
  * запиту для них не потрібно, а фільтр по двох типах — два рядки.
  */
+// Скасовані записи лишаються в історії, а зустрічна проводка йде окремим
+// типом — у списку мають бути обидва, інакше сальдо в картці не сходилося б
+// із тим, що видно очима.
+const OWNER_MOVE_TYPES = [
+  'business_capital',
+  'business_draw',
+  'business_capital_cancel',
+  'business_draw_reversal',
+]
+
 function OwnMoves({ currency }) {
   const history = useBusinessHistory()
+  const cancel = useCancelOwnerMove()
+  const confirm = useConfirm()
   const moves = (history.data ?? [])
-    .filter((move) => move.type === 'business_capital' || move.type === 'business_draw')
+    .filter((move) => OWNER_MOVE_TYPES.includes(move.type))
     .slice(0, 12)
+  // Що вже скасовано: зустрічна проводка посилається на оригінал, і кнопку в
+  // нього треба прибрати, а сам рядок — притишити.
+  const cancelled = new Set(
+    (history.data ?? []).map((move) => move.reversalOf).filter(Boolean),
+  )
 
   return (
     <Card className="min-w-0">
@@ -304,33 +324,66 @@ function OwnMoves({ currency }) {
         {moves.length > 0 && (
           <ul className="divide-y">
             {moves.map((move) => {
-              const incoming = move.type === 'business_capital'
-              // Сума руху — те, що лягло на рахунок капіталу чи вилучення;
+              // Рух капіталу — це рядок на рахунку капіталу або вилучення;
               // решта рядків проводки описують, звідки саме гроші прийшли.
+              // Капітал росте, коли цей рядок від'ємний, тож знак перевертаємо
+              // — і однаково для внеску, вилучення й скасування кожного з них.
               const line = move.lines.find(
-                (row) => row.kind === (incoming ? 'business_capital' : 'business_draw'),
+                (row) => row.kind === 'business_capital' || row.kind === 'business_draw',
               )
               if (!line) return null
-              const amount = line.amount.replace('-', '')
+              const delta = (-BigInt(line.amount)).toString()
               const date = new Date(move.createdAt)
+              const undone = cancelled.has(move.transactionId)
+              const isCancel = Boolean(move.reversalOf)
 
               return (
-                <li key={move.transactionId} className="flex items-baseline gap-3 py-2">
+                <li key={move.transactionId} className="flex items-baseline gap-2 py-2">
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate">
-                      {move.comment || (incoming ? 'Внесок' : 'Вилучення')}
+                    <span className={cn('block truncate', undone && 'line-through opacity-60')}>
+                      {move.comment ||
+                        (isCancel
+                          ? 'Скасування'
+                          : delta.startsWith('-')
+                            ? 'Вилучення'
+                            : 'Внесок')}
                     </span>
                     <span className="text-xs text-muted-foreground">
                       {date.toLocaleDateString('uk-UA', { day: 'numeric', month: 'short' })}
+                      {undone && ' · скасовано'}
                     </span>
                   </span>
                   <Amount
-                    value={incoming ? amount : `-${amount}`}
+                    value={delta}
                     currency={line.currency ?? currency}
                     size="sm"
                     colored
                     signed
+                    className={cn(undone && 'line-through opacity-60')}
                   />
+                  {/* Скасувати можна лише сам запис, а не скасування: далі це
+                      перетворилося б на ланцюг, у якому вже не розібратися. */}
+                  {!undone && !isCancel && (
+                    <button
+                      type="button"
+                      aria-label="Скасувати запис"
+                      className="tap -mr-1 flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-destructive"
+                      disabled={cancel.isPending}
+                      onClick={async () => {
+                        const ok = await confirm({
+                          title: 'Скасувати цей запис?',
+                          description: delta.startsWith('-')
+                            ? 'Вилучення скасується сторно: гроші повернуться в касу, з якої їх забрали.'
+                            : 'Каса не зміниться — гроші з неї нікуди не ділися. Сума просто перестане бути вашим капіталом і рахуватиметься виторгом.',
+                          confirmLabel: 'Скасувати запис',
+                          destructive: true,
+                        })
+                        if (ok) cancel.mutate(move.transactionId)
+                      }}
+                    >
+                      <Undo2 className="size-3.5" aria-hidden />
+                    </button>
+                  )}
                 </li>
               )
             })}

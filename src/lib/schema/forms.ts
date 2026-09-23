@@ -97,6 +97,9 @@ export const spendingSchema = z.object({
   currency: z.string().length(3),
   amount: amountString,
   comment: z.string().trim().min(3, 'Вкажіть причину').max(280, 'До 280 символів'),
+  // Дата в полі — «2026-09-15», у запиті — повний ISO. Порожньо означає
+  // сьогодні, тож і поле лишається порожнім, поки його не чіпали.
+  occurredOn: z.string().optional(),
 })
 
 export const moveFundsSchema = z.object({

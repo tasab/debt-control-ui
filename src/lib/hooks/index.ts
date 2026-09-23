@@ -204,6 +204,10 @@ export const useSpend = () =>
       'Витрату записано',
   })
 
+/** Скасувати власний внесок або вилучення. */
+export const useCancelOwnerMove = () =>
+  useMoneyMutation((id) => apis.business.cancelOwnerMove(id), { success: 'Запис скасовано' })
+
 export const useMonthly = (params = {}) =>
   useQuery({ queryKey: keys.monthly(params), queryFn: () => apis.business.monthly(params) })
 
