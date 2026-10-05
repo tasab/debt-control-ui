@@ -1,9 +1,17 @@
 import { Fragment, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { Collapsible } from 'radix-ui'
 import {
+  ArrowDownLeft,
   ArrowLeftRight,
+  ArrowUpRight,
+  Flag,
+  History,
+  Info,
   CalendarCheck,
+  ChevronDown,
+  ChevronRight,
   ClipboardList,
   Coins,
   Gauge,
@@ -60,6 +68,7 @@ import { Spending, SpendDialog } from './Spending.tsx'
 import { BusinessHistory } from './History.tsx'
 import { ContributionHistory, Members } from './Members.tsx'
 import { BusinessCurrencyProvider, useBusinessCurrency } from './currency.tsx'
+import { CurrencyCode } from '@/components/money/Flag'
 
 export default function Business() {
   const business = useBusiness()
@@ -97,31 +106,41 @@ export default function Business() {
 }
 
 /**
- * Правка стартового капіталу.
+ * Правка «Мого капіталу» — того самого числа, що на картці.
  *
- * Це число — те, скільки власних грошей було в справі на момент, коли бізнес
- * завели в систему: журнал тих років не бачив, вивести їх нема з чого. Усе,
- * що вносилося й забиралося після того, рахується з проводок і додається до
- * цього числа саме.
+ * Раніше тут правилося стартове число, а картка показувала стартове плюс
+ * внесене мінус забране. Людина вводила одне, бачила інше й не розуміла
+ * чому. Тепер у полі — те, що на картці, і що введено, те й стане на картці.
  *
- * Тому тут легко помилитися двічі: якщо ті самі гроші ще раз записати
- * внеском, капітал подвоїться, а прибуток провалиться в мінус на ту саму
- * суму. Про це й сказано у вікні.
+ * Внески й вилучення при цьому не зникають: це реальні рухи грошей у касах,
+ * стерти їх — значить розвести каси з журналом. Замість того сервер отримує
+ * нове стартове число, підібране так, щоб разом із ними вийшла введена сума:
+ * стартовий = введене − (внесено − забрано).
+ *
+ * Рахуємо у валюті показу — у ній і картка, і поле, і нове стартове число,
+ * тож курс між ними не стоїть.
  *
  * Зберігається датованим рядком, а не перезаписом: змінити капітал заднім
  * числом і тим переписати вже показаний прибуток за минулий місяць — не те,
  * що має ставатися непомітно.
  */
-function CapitalDialog({ capital }) {
+function CapitalDialog({ data }) {
   const [open, setOpen] = useState(false)
   const save = useSetStartingCapital()
-  const [amount, setAmount] = useState(capital?.amount ?? '')
-  const [currency, setCurrency] = useState(capital?.currency ?? 'UAH')
+  const currency = data.baseCurrency
+  const current = data.equity ?? data.startingCapital?.base ?? '0'
+  // Внесено мінус забрано — та частина капіталу, яку пишуть кнопки.
+  const moves = BigInt(current) - BigInt(data.startingCapital?.base ?? '0')
+  const prefill = () => (BigInt(current) > 0n ? current : '')
+  const [amount, setAmount] = useState(prefill)
+
+  const starting = amount ? BigInt(amount) - moves : null
+  const tooSmall = starting != null && starting <= 0n
 
   const submit = async (event) => {
     event.preventDefault()
-    if (!amount) return
-    await save.mutateAsync({ amount, currency })
+    if (!amount || tooSmall) return
+    await save.mutateAsync({ amount: starting.toString(), currency })
     setOpen(false)
   }
 
@@ -130,10 +149,7 @@ function CapitalDialog({ capital }) {
       open={open}
       onOpenChange={(next) => {
         setOpen(next)
-        if (next) {
-          setAmount(capital?.amount ?? '')
-          setCurrency(capital?.currency ?? 'UAH')
-        }
+        if (next) setAmount(prefill())
       }}
     >
       <DialogTrigger asChild>
@@ -143,36 +159,42 @@ function CapitalDialog({ capital }) {
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Стартовий капітал</DialogTitle>
+          <DialogTitle>Мій капітал</DialogTitle>
           <DialogDescription>
-            Скільки ваших власних грошей було в справі на старті. Внески й вилучення після того
-            рахуються окремо й додаються до цього числа — записувати їх сюди ще раз не треба.
+            Скільки ваших власних грошей у справі зараз. Що введете — те й буде на картці. Гроші в
+            касах не рухаються, тому зміниться прибуток: він рахується як чиста вартість мінус ваш
+            капітал.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} className="space-y-4" noValidate>
-          <div className="grid grid-cols-[1fr_7rem] gap-3 sm:grid-cols-[1fr_8rem] sm:gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="capital-amount">Сума</Label>
-              <AmountInput
-                id="capital-amount"
-                currency={currency}
-                value={amount}
-                onChange={(value) => setAmount(value ?? '')}
-                autoFocus
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="capital-currency">Валюта</Label>
-              <CurrencySelect
-                id="capital-currency"
-                className="w-full"
-                value={currency}
-                onChange={setCurrency}
-              />
-            </div>
+          <div className="space-y-2">
+            <Label htmlFor="capital-amount">
+              Сума, <CurrencyCode code={currency} />
+            </Label>
+            <AmountInput
+              id="capital-amount"
+              currency={currency}
+              value={amount}
+              onChange={(value) => setAmount(value ?? '')}
+              error={
+                tooSmall
+                  ? 'Менше, ніж уже внесено кнопками. Скасуйте зайві внески в розкладі капіталу.'
+                  : undefined
+              }
+              autoFocus
+            />
+            {/* Внески й вилучення лишаються — видно, на що зсунеться старт. */}
+            {moves !== 0n && starting != null && !tooSmall && (
+              <p className="text-xs text-muted-foreground">
+                Внески й вилучення (
+                <Amount value={moves.toString()} currency={currency} size="sm" signed />) лишаються;
+                стартовий стане <Amount value={starting.toString()} currency={currency} size="sm" />
+                .
+              </p>
+            )}
           </div>
           <DialogFooter>
-            <Button type="submit" disabled={save.isPending || !amount}>
+            <Button type="submit" disabled={save.isPending || !amount || tooSmall}>
               {save.isPending ? 'Зберігаємо…' : 'Зберегти'}
             </Button>
           </DialogFooter>
@@ -303,94 +325,484 @@ const OWNER_MOVE_TYPES = [
 ]
 
 function OwnMoves({ currency }) {
+  return (
+    <AccordionCard title="Що вносив і забирав">
+      <OwnMovesList currency={currency} limit={12} />
+    </AccordionCard>
+  )
+}
+
+/**
+ * Картка, яка відкривається натиском на заголовок і за замовчуванням закрита.
+ *
+ * Деталі під підсумками потрібні зрідка, а відкриті завжди відсували
+ * наступні секції на кілька екранів униз. Згорнуті — займають рядок.
+ */
+function AccordionCard({ title, children }) {
+  return (
+    <Collapsible.Root asChild>
+      <Card className="group min-w-0 gap-0 py-0">
+        <Collapsible.Trigger className="flex w-full items-center justify-between gap-2 rounded-xl p-4 text-left text-sm font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
+          {title}
+          <ChevronDown
+            className="size-4 shrink-0 transition-transform group-data-[state=open]:rotate-180"
+            aria-hidden
+          />
+        </Collapsible.Trigger>
+        <Collapsible.Content>
+          <CardContent className="space-y-2 p-4 pt-0 text-sm">{children}</CardContent>
+        </Collapsible.Content>
+      </Card>
+    </Collapsible.Root>
+  )
+}
+
+// Сам список рухів — і в картці під капіталом (останні), і у вікні розкладу
+// капіталу (усі): рядок, скасування й підписи мають бути однаковими.
+function OwnMovesList({ currency, limit }) {
   const history = useBusinessHistory()
   const cancel = useCancelOwnerMove()
   const confirm = useConfirm()
   const moves = (history.data ?? [])
     .filter((move) => OWNER_MOVE_TYPES.includes(move.type))
-    .slice(0, 12)
+    .slice(0, limit)
   // Що вже скасовано: зустрічна проводка посилається на оригінал, і кнопку в
   // нього треба прибрати, а сам рядок — притишити.
   const cancelled = new Set((history.data ?? []).map((move) => move.reversalOf).filter(Boolean))
 
   return (
-    <Card className="min-w-0">
-      <CardHeader className="p-4 pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground">
-          Що вносив і забирав
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="p-4 pt-0 text-sm">
-        {history.isLoading && <RowsSkeleton rows={3} />}
-        {!history.isLoading && moves.length === 0 && (
-          <p className="text-muted-foreground">
-            Ще не вносили й не забирали — кнопки під «Моїм капіталом».
-          </p>
-        )}
-        {moves.length > 0 && (
-          <ul className="divide-y">
-            {moves.map((move) => {
-              // Рух капіталу — це рядок на рахунку капіталу або вилучення;
-              // решта рядків проводки описують, звідки саме гроші прийшли.
-              // Капітал росте, коли цей рядок від'ємний, тож знак перевертаємо
-              // — і однаково для внеску, вилучення й скасування кожного з них.
-              const line = move.lines.find(
-                (row) => row.kind === 'business_capital' || row.kind === 'business_draw',
-              )
-              if (!line) return null
-              const delta = (-BigInt(line.amount)).toString()
-              const date = new Date(move.createdAt)
-              const undone = cancelled.has(move.transactionId)
-              const isCancel = Boolean(move.reversalOf)
+    <>
+      {history.isLoading && <RowsSkeleton rows={3} />}
+      {!history.isLoading && moves.length === 0 && (
+        <p className="text-muted-foreground">
+          Ще не вносили й не забирали — кнопки під «Моїм капіталом».
+        </p>
+      )}
+      {moves.length > 0 && (
+        <ul className="divide-y">
+          {moves.map((move) => {
+            // Рух капіталу — це рядок на рахунку капіталу або вилучення;
+            // решта рядків проводки описують, звідки саме гроші прийшли.
+            // Капітал росте, коли цей рядок від'ємний, тож знак перевертаємо
+            // — і однаково для внеску, вилучення й скасування кожного з них.
+            const line = move.lines.find(
+              (row) => row.kind === 'business_capital' || row.kind === 'business_draw',
+            )
+            if (!line) return null
+            const delta = (-BigInt(line.amount)).toString()
+            const date = new Date(move.createdAt)
+            const undone = cancelled.has(move.transactionId)
+            const isCancel = Boolean(move.reversalOf)
 
-              return (
-                <li key={move.transactionId} className="flex items-baseline gap-2 py-2">
-                  <span className="min-w-0 flex-1">
-                    <span className={cn('block truncate', undone && 'line-through opacity-60')}>
-                      {move.comment ||
-                        (isCancel ? 'Скасування' : delta.startsWith('-') ? 'Вилучення' : 'Внесок')}
-                    </span>
-                    <span className="text-xs text-muted-foreground">
-                      {date.toLocaleDateString('uk-UA', { day: 'numeric', month: 'short' })}
-                      {undone && ' · скасовано'}
-                    </span>
+            return (
+              <li key={move.transactionId} className="flex items-baseline gap-2 py-2">
+                <span className="min-w-0 flex-1">
+                  <span className={cn('block truncate', undone && 'line-through opacity-60')}>
+                    {move.comment ||
+                      (isCancel ? 'Скасування' : delta.startsWith('-') ? 'Вилучення' : 'Внесок')}
                   </span>
+                  <span className="text-xs text-muted-foreground">
+                    {date.toLocaleDateString('uk-UA', {
+                      day: 'numeric',
+                      month: 'short',
+                    })}
+                    {undone && ' · скасовано'}
+                  </span>
+                </span>
+                {/* Гроші зрушили в гривні за курсом, але людина називала суму в
+                    своїй валюті — її видно під гривнями, щоб не перераховувати
+                    в голові, скільки ж то було євро. */}
+                <span
+                  className={cn(
+                    'flex flex-col items-end',
+                    undone && 'line-through opacity-60',
+                  )}
+                >
                   <Amount
                     value={delta}
                     currency={line.currency ?? currency}
                     size="sm"
                     colored
                     signed
-                    className={cn(undone && 'line-through opacity-60')}
                   />
-                  {/* Скасувати можна лише сам запис, а не скасування: далі це
-                      перетворилося б на ланцюг, у якому вже не розібратися. */}
-                  {!undone && !isCancel && (
-                    <button
-                      type="button"
-                      aria-label="Скасувати запис"
-                      className="tap -mr-1 flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-destructive"
-                      disabled={cancel.isPending}
-                      onClick={async () => {
-                        const ok = await confirm({
-                          title: 'Скасувати цей запис?',
-                          description: delta.startsWith('-')
-                            ? 'Вилучення скасується сторно: гроші повернуться в касу, з якої їх забрали.'
-                            : 'Каса не зміниться — гроші з неї нікуди не ділися. Сума просто перестане бути вашим капіталом і рахуватиметься виторгом.',
-                          confirmLabel: 'Скасувати запис',
-                          destructive: true,
-                        })
-                        if (ok) cancel.mutate(move.transactionId)
-                      }}
-                    >
-                      <Undo2 className="size-3.5" aria-hidden />
-                    </button>
+                  {move.asked && move.asked.currency !== line.currency && (
+                    <span className="text-xs text-muted-foreground">
+                      {delta.startsWith('-') ? '−' : '+'}
+                      <Amount value={move.asked.amount} currency={move.asked.currency} />
+                    </span>
                   )}
+                </span>
+                {/* Скасувати можна лише сам запис, а не скасування: далі це
+                      перетворилося б на ланцюг, у якому вже не розібратися. */}
+                {!undone && !isCancel && (
+                  <button
+                    type="button"
+                    aria-label="Скасувати запис"
+                    className="tap -mr-1 flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-destructive"
+                    disabled={cancel.isPending}
+                    onClick={async () => {
+                      const ok = await confirm({
+                        title: 'Скасувати цей запис?',
+                        description: delta.startsWith('-')
+                          ? 'Вилучення скасується сторно: гроші повернуться в касу, з якої їх забрали.'
+                          : 'Каса не зміниться — гроші з неї нікуди не ділися. Сума просто перестане бути вашим капіталом і рахуватиметься виторгом.',
+                        confirmLabel: 'Скасувати запис',
+                        destructive: true,
+                      })
+                      if (ok) cancel.mutate(move.transactionId)
+                    }}
+                  >
+                    <Undo2 className="size-3.5" aria-hidden />
+                  </button>
+                )}
+              </li>
+            )
+          })}
+        </ul>
+      )}
+    </>
+  )
+}
+
+/**
+ * Розклад «Мого капіталу»: з чого складається число на картці.
+ *
+ * Без нього картка показувала одне число, а «Змінити» — інше, і не було
+ * видно, що між ними стоять внески й вилучення. Тут видно всі доданки, ті
+ * самі, якими рахує сервер: стартовий + внесено − забрано.
+ *
+ * Кожен рух валюти зафіксовано в гривні за курсом на момент руху — сервер
+ * не перераховує минуле за сьогоднішнім курсом. Нижче — по валютах, у яких
+ * гроші насправді вносили й забирали, і повний список рухів.
+ */
+/** Доданки «Мого капіталу» з відповіді дашборду, у валюті показу. */
+function capitalTerms(data) {
+  return {
+    startValue: data.startingCapital?.base ?? '0',
+    capital: data.capital ?? '0',
+    draw: data.draw ?? '0',
+    equity: data.equity ?? data.startingCapital?.base ?? '0',
+  }
+}
+
+/**
+ * Смуга складу капіталу — усе, що власник поклав у справу (старт +
+ * внесено), а праворуч від неї відрізано те, що вже забрали. Частки лише для
+ * ширини, тому Number тут досить: копійки на ширину в пікселях не впливають.
+ */
+function CapitalBar({ data, className = undefined }) {
+  const { startValue, capital, draw } = capitalTerms(data)
+  const put = Math.max(Number(startValue), 0) + Math.max(Number(capital), 0)
+  const share = (value) => (put > 0 ? Math.min(Math.max(Number(value) / put, 0), 1) * 100 : 0)
+
+  return (
+    <div className={cn('relative flex h-2.5 overflow-hidden rounded-full bg-muted', className)}>
+      <div className="bg-chart-5" style={{ width: `${share(startValue)}%` }} />
+      <div className="bg-success" style={{ width: `${share(capital)}%` }} />
+      <div
+        className="absolute inset-y-0 right-0 bg-[repeating-linear-gradient(135deg,var(--destructive)_0_4px,var(--muted)_4px_8px)]"
+        style={{ width: `${share(draw)}%` }}
+      />
+    </div>
+  )
+}
+
+function CapitalBreakdown({ data, trigger }) {
+  const currency = data.baseCurrency
+  const starting = data.startingCapital
+  const { startValue, capital, draw, equity } = capitalTerms(data)
+
+  const parts = [
+    {
+      key: 'start',
+      icon: Flag,
+      label: 'Старт',
+      value: startValue,
+      tone: 'text-chart-5',
+      tile: 'border-chart-5/25 bg-chart-5/8',
+      sign: '',
+    },
+    {
+      key: 'in',
+      icon: ArrowDownLeft,
+      label: 'Внесено',
+      value: capital,
+      tone: 'text-success',
+      tile: 'border-success/25 bg-success/8',
+      sign: '+',
+    },
+    {
+      key: 'out',
+      icon: ArrowUpRight,
+      label: 'Забрано',
+      value: draw,
+      tone: 'text-destructive',
+      tile: 'border-destructive/25 bg-destructive/8',
+      sign: '−',
+    },
+  ]
+
+  return (
+    <Dialog>
+      <DialogTrigger asChild>{trigger}</DialogTrigger>
+      <DialogContent className="gap-5 sm:max-w-lg">
+        <DialogHeader className="flex-row items-center gap-3 space-y-0 text-left">
+          <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-chart-5/12">
+            <PiggyBank className="size-5 text-chart-5" aria-hidden />
+          </span>
+          <div className="min-w-0">
+            <DialogTitle className="text-sm font-medium text-muted-foreground">
+              Мій капітал
+            </DialogTitle>
+            <Amount value={equity} currency={currency} size="xl" whole />
+          </div>
+        </DialogHeader>
+        <DialogDescription className="-mt-2">
+          Скільки ваших власних грошей зараз у справі. Внески й вилучення не змінюють прибутку —
+          вони змінюють саме це число.
+        </DialogDescription>
+
+        {/* Склад числа: що поклали і скільки з того вже забрали. */}
+        <CapitalBar data={data} />
+
+        <div className="grid grid-cols-3 gap-2">
+          {parts.map((part) => (
+            <div key={part.key} className={cn('min-w-0 rounded-lg border p-2.5', part.tile)}>
+              <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                <part.icon className={cn('size-3.5 shrink-0', part.tone)} aria-hidden />
+                <span className="truncate">{part.label}</span>
+              </div>
+              <p className="mt-1 truncate text-sm font-semibold sm:text-base">
+                {part.sign && <span className={part.tone}>{part.sign}</span>}
+                <Amount value={part.value} currency={currency} whole showCurrency={false} />
+              </p>
+              {part.key === 'start' && starting && starting.currency !== currency && (
+                <p className="truncate text-[11px] text-muted-foreground">
+                  <Amount value={starting.amount} currency={starting.currency} whole />
+                </p>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {data.ownerCapital?.length > 0 && (
+          <section className="space-y-2">
+            <h3 className="text-sm font-medium">По валютах</h3>
+            <ul className="divide-y rounded-lg border">
+              {data.ownerCapital.map((row) => (
+                <li key={row.currency} className="flex items-center gap-3 px-3 py-2 text-sm">
+                  <CurrencyCode
+                    code={row.currency}
+                    className="rounded-md bg-muted px-1.5 py-0.5 text-xs font-semibold"
+                  />
+                  <span className="flex min-w-0 flex-1 flex-wrap gap-x-3 text-xs text-muted-foreground">
+                    {row.capital !== '0' && (
+                      <span>
+                        <span className="text-success">+</span>
+                        <Amount value={row.capital} currency={row.currency} showCurrency={false} />
+                      </span>
+                    )}
+                    {row.draw !== '0' && (
+                      <span>
+                        <span className="text-destructive">−</span>
+                        <Amount value={row.draw} currency={row.currency} showCurrency={false} />
+                      </span>
+                    )}
+                  </span>
+                  <Amount
+                    value={row.equity}
+                    currency={row.currency}
+                    size="sm"
+                    colored
+                    signed
+                    className="font-semibold"
+                  />
                 </li>
-              )
-            })}
-          </ul>
+              ))}
+            </ul>
+          </section>
         )}
+
+        <section className="space-y-2">
+          <h3 className="flex items-center gap-1.5 text-sm font-medium">
+            <History className="size-3.5 text-muted-foreground" aria-hidden />
+            Усі внески й вилучення
+          </h3>
+          <div className="rounded-lg border px-3 text-sm">
+            <OwnMovesList currency={currency} />
+          </div>
+        </section>
+
+        <p className="flex gap-2 rounded-lg bg-muted/60 p-3 text-xs text-muted-foreground">
+          <Info className="mt-px size-3.5 shrink-0" aria-hidden />
+          Рух у валюті зафіксовано в гривні за курсом того дня, коли його зробили, — минуле не
+          перераховується за сьогоднішнім курсом. Курсова різниця по грошах у касах іде в прибуток.
+        </p>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+/**
+ * Картка «Мій капітал» над рештою підсумків.
+ *
+ * Ліворуч — число й те, з чого воно складається (старт, внесено, забрано й
+ * смуга), щоб «чому саме стільки» було видно, не відкриваючи вікна; натиск
+ * на цю частину відкриває повний розклад. Праворуч — дії: гроші власника
+ * рухаються тут, біля свого ж числа, а не серед щоденних дій, бо прибутку
+ * вони не змінюють.
+ */
+function CapitalCard({ data }) {
+  const currency = data.baseCurrency
+  const { startValue, capital, draw, equity } = capitalTerms(data)
+
+  return (
+    <Card className="gap-0 border-chart-5/30 bg-chart-5/8 py-0">
+      <CardContent className="flex flex-col gap-4 p-4 sm:p-5 md:flex-row md:items-center md:gap-6">
+        <CapitalBreakdown
+          data={data}
+          trigger={
+            <button
+              type="button"
+              className="group/capital -m-2 flex min-w-0 flex-1 items-start gap-3 rounded-lg p-2 text-left transition-colors hover:bg-chart-5/10 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+              aria-label="Розклад мого капіталу"
+            >
+              <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-chart-5/15">
+                <PiggyBank className="size-5 text-chart-5" aria-hidden />
+              </span>
+              <span className="min-w-0 flex-1 space-y-1.5">
+                <span className="flex items-center gap-1 text-sm text-muted-foreground">
+                  Мій капітал
+                  <ChevronRight
+                    className="size-3.5 transition-transform group-hover/capital:translate-x-0.5"
+                    aria-hidden
+                  />
+                </span>
+                {/* Не стартове число, а скільки моїх грошей у справі зараз:
+                    старт плюс внесене мінус забране. */}
+                <Amount value={equity} currency={currency} size="xl" whole className="block" />
+                <span className="flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-muted-foreground">
+                  <span>
+                    старт{' '}
+                    <Amount
+                      value={startValue}
+                      currency={currency}
+                      whole
+                      showCurrency={false}
+                      className="font-medium text-foreground"
+                    />
+                  </span>
+                  <span>
+                    <span className="font-medium text-success">
+                      +<Amount value={capital} currency={currency} whole showCurrency={false} />
+                    </span>{' '}
+                    внесено
+                  </span>
+                  <span>
+                    <span className="font-medium text-destructive">
+                      −<Amount value={draw} currency={currency} whole showCurrency={false} />
+                    </span>{' '}
+                    забрано
+                  </span>
+                </span>
+                <CapitalBar data={data} className="mt-1 h-1.5 max-w-md" />
+              </span>
+            </button>
+          }
+        />
+
+        <div className="flex flex-col gap-2 md:w-60 md:shrink-0">
+          <div className="grid grid-cols-2 gap-2">
+            <SpendDialog
+              kind="capital"
+              trigger={
+                <Button className="w-full bg-success text-success-foreground hover:bg-success/90">
+                  <Plus className="size-4" aria-hidden />
+                  Додати
+                </Button>
+              }
+            />
+            <SpendDialog
+              kind="draw"
+              trigger={
+                <Button
+                  variant="outline"
+                  className="w-full border-destructive/40 bg-background text-destructive hover:bg-destructive/10 hover:text-destructive"
+                >
+                  <Minus className="size-4" aria-hidden />
+                  Забрати
+                </Button>
+              }
+            />
+          </div>
+          {/* Стартове число правиться окремо й тихіше за рух грошей: його
+              чіпають раз, коли заводять бізнес, а не щодня. */}
+          <div className="flex justify-center">
+            <CapitalDialog data={data} />
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+const NET_WORTH_KEY = 'net-worth-currency'
+
+/**
+ * Чиста вартість — зі своїм перемикачем валюти.
+ *
+ * Валюта показу сторінки рахує всі підсумки разом; а «скільки це все в
+ * доларах чи злотих» хочеться глянути окремо, не перемикаючи решту сторінки.
+ * Вибір запам’ятовується в браузері, як і валюта сторінки. Поки він не
+ * зроблений, картка йде за валютою сторінки.
+ */
+function NetWorthCard({ data }) {
+  const [own, setOwn] = useState(() => {
+    try {
+      return localStorage.getItem(NET_WORTH_KEY)
+    } catch {
+      return null
+    }
+  })
+  const currency = own ?? data.baseCurrency
+  const separate = currency !== data.baseCurrency
+  // Той самий запит дашборду, лише в іншій валюті: сервер рахує, клієнт
+  // нічого не конвертує (CLIENT_PLAN §0). Кеш спільний із перемикачем угорі.
+  const other = useDashboard(currency, separate)
+  const value = separate ? other.data?.netWorth : data.netWorth
+
+  const choose = (next) => {
+    setOwn(next)
+    try {
+      localStorage.setItem(NET_WORTH_KEY, next)
+    } catch {
+      // Не зберегли — вибір діє до перезавантаження.
+    }
+  }
+
+  return (
+    <Card className="gap-0 border-muted-foreground/25 bg-muted/50 py-0">
+      <CardContent className="space-y-1 p-4">
+        <div className="flex items-center justify-between gap-2">
+          <span className="flex min-w-0 items-center gap-1.5 text-sm text-muted-foreground">
+            <Scale className="size-3.5 shrink-0" aria-hidden />
+            <span className="truncate">Чиста вартість</span>
+          </span>
+          <CurrencySelect
+            id="net-worth-currency"
+            className="h-7 w-auto shrink-0 gap-1 bg-background px-2 text-xs"
+            value={currency}
+            onChange={choose}
+          />
+        </div>
+        {separate && other.isError ? (
+          <p className="text-sm text-muted-foreground">Немає курсу для {currency}</p>
+        ) : value == null ? (
+          <div className="h-7 w-24 animate-pulse rounded bg-muted" />
+        ) : (
+          <Amount value={value} currency={currency} size="lg" whole className="block" />
+        )}
+        <p className="text-xs text-muted-foreground">Активи мінус борг перед учасниками</p>
       </CardContent>
     </Card>
   )
@@ -439,20 +851,21 @@ function RatesHint({ base, stale }) {
             .map((rate) => (
               <li key={rate.code} className="flex items-baseline justify-between gap-4">
                 <span>
-                  1 {rate.code}
+                  1 <CurrencyCode code={rate.code} />
                   {stale.includes(rate.code) && (
                     <span className="ml-1 text-amber-600 dark:text-amber-400">застарілий</span>
                   )}
                 </span>
                 <span>
-                  {mid(rate)} {pivot}
+                  {mid(rate)} <CurrencyCode code={pivot} />
                 </span>
               </li>
             ))}
         </ul>
         {base !== pivot && (
           <p className="mt-1.5 text-muted-foreground">
-            Показ у {base} — перерахунок через {pivot} за цими ж курсами.
+            Показ у <CurrencyCode code={base} /> — перерахунок через{' '}
+            <CurrencyCode code={pivot} /> за цими ж курсами.
           </p>
         )}
       </TooltipContent>
@@ -518,31 +931,19 @@ function Dashboard() {
           різниця між ними — нейтральним. Тон приглушений (8–12% від токена
           теми), щоб цифра лишалася головним на картці. */}
 
-      {/* Чиста вартість винесена окремим рядком над рештою.
-          П’ять однакових плиток означали, що головне число сторінки треба
-          щоразу вишукувати серед чотирьох таких самих; тепер воно єдине в
-          своєму рядку і вдвічі більше, а решта чотири — те, з чого воно
-          складається. */}
-      <Card className="border-muted-foreground/25 bg-muted/50">
-        <CardContent className="p-4 sm:p-5">
-          <AmountBlock
-            icon={Scale}
-            label="Чиста вартість"
-            value={data.netWorth}
-            currency={currency}
-            whole
-            size="xl"
-            hint="Активи мінус борг перед учасниками"
-          />
-        </CardContent>
-      </Card>
+      {/* Мій капітал — окремо й на всю ширину на будь-якому екрані: це
+          єдина картка з діями, і їй потрібне місце під кнопки. Решта чотири
+          підсумки — під ним, на великому екрані одним рядком, на меншому —
+          кожен на всю ширину. Активи мінус зобов’язання дають чисту
+          вартість, а мій капітал плюс прибуток — її ж з іншого боку. Виторгу
+          й витрат тут немає: вони накопичені за місяцями й живуть у вкладці
+          «Заробіток». */}
+      <CapitalCard data={data} />
 
-      {/* Чотири доданки одного числа в одному ряду: активи мінус
-          зобов’язання дають чисту вартість, а мій капітал плюс прибуток —
-          її ж з іншого боку. Виторгу й витрат тут немає: вони накопичені за
-          місяцями й живуть у вкладці «Заробіток». */}
-      <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
-        <Card className="border-chart-1/30 bg-chart-1/8">
+      <div className="grid gap-2 lg:grid-cols-4">
+        <NetWorthCard data={data} />
+
+        <Card className="gap-0 border-chart-1/30 bg-chart-1/8 py-0">
           <CardContent className="p-4">
             <AmountBlock
               icon={Coins}
@@ -556,7 +957,7 @@ function Dashboard() {
           </CardContent>
         </Card>
 
-        <Card className="border-destructive/30 bg-destructive/8">
+        <Card className="gap-0 border-destructive/30 bg-destructive/8 py-0">
           <CardContent className="p-4">
             <AmountBlock
               icon={Users}
@@ -570,61 +971,11 @@ function Dashboard() {
           </CardContent>
         </Card>
 
-        <Card className="border-chart-5/30 bg-chart-5/8">
-          <CardContent className="space-y-1 p-4">
-            <AmountBlock
-              icon={PiggyBank}
-              iconClassName="text-chart-5"
-              label="Мій капітал"
-              // Не стартове число, а скільки моїх грошей у справі зараз:
-              // старт плюс внесене мінус забране. Кнопки під карткою рухають
-              // саме його — інакше внесок з власної кишені додавався б до
-              // прибутку, а число над ними стояло б нерухомо.
-              value={data.equity ?? data.startingCapital?.base ?? '0'}
-              currency={currency}
-              whole
-              showCurrency={false}
-            />
-            {/* Гроші власника рухаються тут, біля свого ж числа: «Додати» —
-                внесок у справу, «Забрати» — вилучення. Прибутку це не
-                змінює, тому кнопки не стоять серед щоденних дій. */}
-            <div className="grid grid-cols-2 gap-2 pt-1">
-              <SpendDialog
-                kind="capital"
-                trigger={
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="w-full border-success/40 text-success hover:bg-success/10 hover:text-success"
-                  >
-                    <Plus className="size-3.5" aria-hidden />
-                    Додати
-                  </Button>
-                }
-              />
-              <SpendDialog
-                kind="draw"
-                trigger={
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="w-full border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                  >
-                    <Minus className="size-3.5" aria-hidden />
-                    Забрати
-                  </Button>
-                }
-              />
-            </div>
-            {/* Стартове число правиться окремо й тихіше за рух грошей: його
-                чіпають раз, коли заводять бізнес, а не щодня. */}
-            <CapitalDialog capital={data.startingCapital} />
-          </CardContent>
-        </Card>
-
         <Card
           className={
-            profitable ? 'border-success/40 bg-success/8' : 'border-destructive/40 bg-destructive/8'
+            profitable
+              ? 'gap-0 border-success/40 bg-success/8 py-0'
+              : 'gap-0 border-destructive/40 bg-destructive/8 py-0'
           }
         >
           <CardContent className="p-4">
@@ -647,16 +998,10 @@ function Dashboard() {
           власною мінімальною шириною, а колонка гріда за замовчуванням
           розтягується під найширший вміст. Без цього картка вилазила за
           екран телефона замість того, щоб таблиця возилася вбік у собі. */}
-      <div className="grid gap-2 sm:grid-cols-2">
+      <div className="grid gap-2">
         <OwnMoves currency={currency} />
 
-        <Card className="min-w-0">
-          <CardHeader className="p-4 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              У розрізі валют
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2 p-4 pt-0 text-sm">
+        <AccordionCard title="У розрізі валют">
             {data.byCurrency.length === 0 && (
               <p className="text-muted-foreground">Ще немає рухів коштів.</p>
             )}
@@ -681,7 +1026,7 @@ function Dashboard() {
 
                   return (
                     <div key={row.currency} className="rounded-lg border p-3">
-                      <p className="font-medium">{row.currency}</p>
+                      <CurrencyCode code={row.currency} className="block font-medium" />
                       <dl className="mt-1.5 grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
                         {parts.map((part) => (
                           <div
@@ -716,7 +1061,7 @@ function Dashboard() {
                   <span className="text-right text-xs text-muted-foreground">Борг</span>
                   {data.byCurrency.map((row) => (
                     <Fragment key={row.currency}>
-                      <span className="font-medium">{row.currency}</span>
+                      <CurrencyCode code={row.currency} className="font-medium" />
                       <span className="text-right">
                         <Amount
                           value={row.registers}
@@ -754,8 +1099,7 @@ function Dashboard() {
                 </div>
               </div>
             )}
-          </CardContent>
-        </Card>
+        </AccordionCard>
       </div>
     </section>
   )

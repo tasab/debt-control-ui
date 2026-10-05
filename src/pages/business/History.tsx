@@ -61,7 +61,7 @@ export function BusinessHistory() {
           <HistoryIcon className="size-4" aria-hidden /> Історія рахунку
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-xl">
+      <DialogContent className="sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>Історія рахунку</DialogTitle>
           <DialogDescription>

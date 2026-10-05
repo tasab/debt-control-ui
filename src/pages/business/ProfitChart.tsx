@@ -12,6 +12,7 @@ import { EmptyState, ErrorState, RowsSkeleton } from '@/components/layout/states
 import { formatAmount } from '@/lib/money'
 import { useProfitSeries } from '@/lib/hooks'
 import { useBusinessCurrency } from './currency.tsx'
+import { withFlag } from '@/lib/currency'
 
 /**
  * Прибуток від закриття до закриття.
@@ -70,7 +71,7 @@ function Chart({ query, currency }) {
   }))
 
   const money = (value) =>
-    `${formatAmount(String(Math.round(value * 100)), { exponent: 2 })} ${currency}`
+    `${formatAmount(String(Math.round(value * 100)), { exponent: 2 })} ${withFlag(currency)}`
 
   // Вісь Y на телефоні пише «12,5 тис.» замість «12 500»: повний запис
   // з’їдав чверть ширини екрана під самі лише підписи.

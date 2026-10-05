@@ -51,7 +51,7 @@ function DialogOverlay({
  * На iOS клавіатура не зменшує сторінку: layout viewport лишається тієї ж
  * висоти, тож вікно, притиснуте до низу, опиняється просто під клавіатурою
  * разом зі своїми кнопками. Про справжню видиму область знає лише
- * `visualViewport` — з неї й рахуємо, на скільки підняти шторку.
+ * `visualViewport` — з неї й рахуємо, на скільки підняти вікно.
  *
  * Слухачі живуть лише поки діалог відкритий — хук викликає сам вміст
  * діалога, а його Radix монтує тільки на час показу.
@@ -80,7 +80,7 @@ function useViewportInset() {
 
   React.useEffect(() => {
     if (!inset) return
-    // Поле, у яке щойно почали писати, має лишитися на видноті: шторка
+    // Поле, у яке щойно почали писати, має лишитися на видноті: вікно
     // піднялася над клавіатурою, але курсор міг опинитися нижче її краю.
     const active = document.activeElement
     if (active && typeof active.scrollIntoView === "function" && active !== document.body) {
@@ -92,20 +92,16 @@ function useViewportInset() {
 }
 
 /**
- * На телефоні діалог — це нижня «шторка», на десктопі — звичайне вікно
- * посередині.
+ * Діалог — звичайне вікно посередині екрана, однаково на телефоні й на
+ * десктопі.
  *
- * Причина не в моді: вікно, відцентроване по вертикалі, на телефоні
- * вилітає з-під клавіатури, а його кнопки опиняються у верхній половині
- * екрана, куди великим пальцем не дістати. Шторка притиснута до низу — і
- * підіймається рівно настільки, скільки треба вмісту.
+ * Раніше на телефоні це була нижня «шторка», але прокручувати довгий вміст у
+ * ній було незручно, і власник попросив однакове вікно скрізь. Вміст довший
+ * за екран прокручується всередині самого вікна.
  *
- * Центрування зроблено флексом, а не translate: анімація в’їзду знизу теж
- * рухає transform, і два джерела зсуву на одному елементі дають стрибок.
- *
- * Висота шторки — відсоток від обгортки, а не від `dvh`: обгортка
- * закінчується там, де починається клавіатура, тож вміст обмежується
- * видимою частиною екрана сам, без жодних чисел у стилях.
+ * Обгортка закінчується там, де починається клавіатура (`bottom` = висота
+ * перекритої частини), тож відцентроване вікно стоїть над нею, а його висота —
+ * відсоток від обгортки — обмежується видимою частиною екрана сама.
  */
 function DialogContent({
   className,
@@ -114,8 +110,8 @@ function DialogContent({
   ...props
 }) {
   const inset = useViewportInset()
-  // Поки низ нічим не перекритий, усе лишається на класах: підняття й
-  // обмеження висоти потрібні саме тоді, коли вилізла клавіатура.
+  // Поки низ нічим не перекритий, усе лишається на класах: підняття потрібне
+  // саме тоді, коли вилізла клавіатура.
   const lifted = inset > 0
 
   return (
@@ -127,28 +123,18 @@ function DialogContent({
           `bottom` тут інлайном, а не класом: висота клавіатури — число, яке
           приходить у рантаймі й змінюється при кожному її відкритті. */}
       <div
-        className="pointer-events-none fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4"
+        className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center p-4"
         style={lifted ? { bottom: `${inset}px` } : undefined}
       >
         <DialogPrimitive.Content
           data-slot="dialog-content"
-          // Піднята шторка стоїть над клавіатурою, а не над краєм екрана —
-          // запас під домашню смугу iPhone їй уже не потрібен.
-          style={lifted ? { paddingBottom: "1.25rem" } : undefined}
           className={cn(
-            "pointer-events-auto relative grid max-h-[92%] w-full gap-4 overflow-y-auto overscroll-contain rounded-t-2xl border-t bg-background p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom,0px))] shadow-lg duration-200 outline-none",
-            "sm:max-h-[85%] sm:max-w-lg sm:rounded-xl sm:border sm:p-6 sm:pb-6",
+            "pointer-events-auto relative grid max-h-full w-full max-w-lg gap-4 overflow-y-auto overscroll-contain rounded-xl border bg-background p-5 shadow-lg duration-200 outline-none sm:max-h-[85%] sm:p-6",
             "data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0",
-            "data-[state=closed]:slide-out-to-bottom-4 data-[state=open]:slide-in-from-bottom-4",
-            "sm:data-[state=closed]:zoom-out-95 sm:data-[state=open]:zoom-in-95",
+            "data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
             className
           )}
           {...props}>
-          {/* «Ручка» вгорі шторки: показує, що панель прийшла знизу і що її
-              можна закрити, ще до того, як людина знайде хрестик. */}
-          <div
-            className="mx-auto -mt-1 h-1 w-10 shrink-0 rounded-full bg-border sm:hidden"
-            aria-hidden />
           {children}
           {showCloseButton && (
             <DialogPrimitive.Close

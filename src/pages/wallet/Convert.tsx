@@ -10,6 +10,7 @@ import { AmountInput } from '@/components/money/AmountInput'
 import { CurrencySelect } from '@/components/money/CurrencySelect'
 import { Amount } from '@/components/money/Amount'
 import { useExecuteQuote, useQuote, useRates, useWallets } from '@/lib/hooks'
+import { CurrencyCode } from '@/components/money/Flag'
 
 const QUOTE_TTL_SECONDS = 60
 
@@ -250,7 +251,7 @@ function RateTable({ rates }) {
           {sorted.map((rate) => (
             <tr key={rate.code} className="border-b last:border-0">
               <td className="px-4 py-2 font-medium">
-                {rate.code}
+                <CurrencyCode code={rate.code} />
                 {rate.isStale && (
                   <span className="ml-2 text-xs text-amber-600 dark:text-amber-400">застарілий</span>
                 )}

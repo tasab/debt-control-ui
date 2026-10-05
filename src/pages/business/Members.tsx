@@ -27,6 +27,7 @@ import {
   useMembers,
   useUserSearch,
 } from '@/lib/hooks'
+import { withFlag } from '@/lib/currency'
 
 /**
  * Учасники — сторона власника.
@@ -145,7 +146,7 @@ function MemberCard({ member }) {
                   // Попередження називає суму: вихід не просто знімає статус,
                   // він віддає гроші, і це має бути видно до натискання.
                   const debt = owing
-                    .map((row) => `${formatAmount(row.balance)} ${row.currency}`)
+                    .map((row) => `${formatAmount(row.balance)} ${withFlag(row.currency)}`)
                     .join(', ')
                   const ok = await confirm({
                     title: `Завершити участь «${member.displayName}»?`,

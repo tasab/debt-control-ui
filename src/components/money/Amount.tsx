@@ -1,6 +1,7 @@
 import { cn } from '@/lib/utils'
 import { formatAmount, formatWhole, isNegative, isZero } from '@/lib/money'
 import { useExponents } from '@/lib/hooks'
+import { CurrencyCode } from '@/components/money/Flag'
 
 /**
  * The only way an amount reaches the screen (CLIENT_PLAN §3).
@@ -53,7 +54,7 @@ export function Amount({
       aria-label={`${text} ${currency}`}
     >
       {text}
-      {showCurrency && <span className="ml-1 text-muted-foreground">{currency}</span>}
+      {showCurrency && <CurrencyCode code={currency} className="ml-1 text-muted-foreground" />}
     </span>
   )
 }

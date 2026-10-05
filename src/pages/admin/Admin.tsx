@@ -31,7 +31,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { UserShareDialog } from '@/pages/wallet/ShareBalance'
 import { MovesList } from '@/pages/wallet/TransactionList'
 import { Amount } from '@/components/money/Amount'
-import { Flag } from '@/components/money/Flag'
+import { Flag, CurrencyCode } from '@/components/money/Flag'
 import {
   Select,
   SelectContent,
@@ -52,6 +52,7 @@ import {
   useDeleteUser,
   useExponents,
 } from '@/lib/hooks'
+import { withFlag } from '@/lib/currency'
 
 /**
  * Адмінська правка рахунків учасників.
@@ -296,7 +297,7 @@ export default function Admin() {
                         className="flex flex-wrap items-center justify-between gap-3 py-2.5"
                       >
                         <span className="flex min-w-12 flex-col gap-0.5 text-sm">
-                          <span className="font-mono text-muted-foreground">{row.currency}</span>
+                          <CurrencyCode code={row.currency} className="font-mono text-muted-foreground" />
                           {/* Сума розкладена на кілька місць — рідкість, але тоді
                           адмін має бачити, з чого вона складена, бо правка
                           ляже лише в одне з них. */}
@@ -486,7 +487,7 @@ function DeleteUserButton({ user }) {
   const exponents = useExponents()
 
   const money = (amount, currency) =>
-    `${formatAmount(amount, { exponent: exponents[currency] ?? 2 })} ${currency}`
+    `${formatAmount(amount, { exponent: exponents[currency] ?? 2 })} ${withFlag(currency)}`
 
   // Усе, що зникне разом із людиною: вільні кошти на гаманці й те, що бізнес
   // їй винен. Модалка називає це поіменно — списувати гроші наосліп не можна.
@@ -593,7 +594,7 @@ function AdjustDialog({ user, wallet, mode, onClose }) {
           <DialogTitle>
             {MODES[mode].title}
             <span className="ml-2 font-normal text-muted-foreground">
-              {user.displayName} · {wallet.currency}
+              {user.displayName} · <CurrencyCode code={wallet.currency} />
               {isClaim && ' у бізнесі'}
             </span>
           </DialogTitle>

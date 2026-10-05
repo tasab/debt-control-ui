@@ -20,10 +20,26 @@ export function Flag({ code, size = 'base', className }) {
         size === 'lg' && 'text-xl',
         size === 'base' && 'text-lg',
         size === 'sm' && 'text-base',
+        // Поруч із кодом у рядку тексту — трохи більший за сам текст, але
+        // від нього, щоб не розпирав рядок у дрібних підписах.
+        size === 'inline' && 'text-[1.1em]',
         className,
       )}
     >
       {flag}
+    </span>
+  )
+}
+
+/**
+ * Код валюти з прапорцем збоку — так код показується скрізь у застосунку.
+ * Прапор впізнається швидше за три літери, код лишається однозначним.
+ */
+export function CurrencyCode({ code, className = undefined }) {
+  return (
+    <span className={cn('whitespace-nowrap', className)}>
+      <Flag code={code} size="inline" className="mr-1" />
+      {code}
     </span>
   )
 }

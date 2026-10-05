@@ -1,7 +1,7 @@
 import { useParams } from 'react-router-dom'
 import { Eye, Link2Off } from 'lucide-react'
 import { Amount } from '@/components/money/Amount'
-import { Flag } from '@/components/money/Flag'
+import { Flag, CurrencyCode } from '@/components/money/Flag'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ThemeToggle } from '@/components/layout/ThemeToggle'
 import { MovesList } from '@/pages/wallet/TransactionList'
@@ -72,7 +72,7 @@ function Balance({ data }) {
               сказати вголос, бо самі гроші лежать не в ній. */}
           {converted && (
             <p className="mt-1 text-xs text-muted-foreground">
-              Усе разом у {data.baseCurrency} за поточним курсом
+              Усе разом у <CurrencyCode code={data.baseCurrency} /> за поточним курсом
             </p>
           )}
         </div>

@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { SectionHeader } from '@/components/layout/Section'
 import { RowsSkeleton } from '@/components/layout/states'
 import { useRates, useSetRate } from '@/lib/hooks'
+import { CurrencyCode } from '@/components/money/Flag'
 
 /**
  * Власні курси обмінника.
@@ -73,7 +74,7 @@ function RateRow({ rate }) {
   return (
     <>
       <span className="flex items-center gap-1.5 font-medium">
-        {rate.code}
+        <CurrencyCode code={rate.code} />
         {!rate.isManual && (
           <Badge variant="outline" className="px-1 py-0 text-[10px] text-muted-foreground">
             стрічка

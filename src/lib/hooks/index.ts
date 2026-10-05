@@ -323,7 +323,14 @@ export const useCountCash = () =>
 
 // ─── Stats ──────────────────────────────────────────────────────────────────
 
-export const useSummary = () => useQuery({ queryKey: keys.summary, queryFn: apis.stats.summary })
+// Валюта показу — частина ключа, а `keys.summary` лишається префіксом:
+// інвалідація після переказу чи обміну зачіпає підсумок у будь-якій валюті.
+export const useSummary = (currency = null) =>
+  useQuery({
+    queryKey: [...keys.summary, currency],
+    queryFn: () => apis.stats.summary(currency ? { in: currency } : undefined),
+    placeholderData: (previous) => previous,
+  })
 
 export const useBalanceHistory = (params = {}) =>
   useQuery({ queryKey: keys.balanceHistory(params), queryFn: () => apis.stats.balanceHistory(params) })

@@ -34,7 +34,16 @@ import { spendingSchema } from '@/lib/schema/forms'
 import { applyServerErrors } from '@/lib/formErrors'
 import { isZero } from '@/lib/money'
 import { cn } from '@/lib/utils'
-import { useConverter, useCountSheet, useMonthly, useRegisters, useSpend } from '@/lib/hooks'
+import {
+  useConverter,
+  useCountSheet,
+  useCurrencies,
+  useMonthly,
+  useRegisters,
+  useSpend,
+} from '@/lib/hooks'
+import { CurrencyCode } from '@/components/money/Flag'
+import { withFlag } from '@/lib/currency'
 
 const MONTHS = [
   'січень', 'лютий', 'березень', 'квітень', 'травень', 'червень',
@@ -89,7 +98,7 @@ export function Spending({ showTitle = true }) {
         <Card>
           <CardHeader className="p-4 pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Усе в {report.data.baseCurrency} за поточним курсом
+              Усе в <CurrencyCode code={report.data.baseCurrency} /> за поточним курсом
             </CardTitle>
           </CardHeader>
           <CardContent className="p-4 pt-0">
@@ -244,7 +253,7 @@ export const SPEND_KINDS = {
     icon: HandCoins,
     variant: 'outline',
     description:
-      'Гроші, які ви забрали собі. Каса зменшиться, але прибуток за місяць залишиться таким, яким був — ви його заробили.',
+      'Гроші, які ви забрали собі. Сума в будь-якій валюті перераховується в гривні й списується з готівки поза касами. Прибуток не зміниться — ви його заробили.',
     placeholder: 'Прибуток за вересень',
   },
   capital: {
@@ -253,7 +262,7 @@ export const SPEND_KINDS = {
     icon: PiggyBank,
     variant: 'outline',
     description:
-      'Власні гроші в обігу. Якщо приносите їх зараз — каса зросте. Якщо вони вже в касі й перерахунок записав їх виторгом — оберіть «вже в касі», і сума перейде з виторгу у ваш капітал.',
+      'Власні гроші в обігу. Сума в будь-якій валюті перераховується в гривні й додається до готівки поза касами. Прибуток не зміниться — це не заробіток.',
     placeholder: 'Власні кошти в обіг',
   },
 }
@@ -272,8 +281,15 @@ export function SpendDialog({ kind, trigger }) {
   // Запит іде лише коли вікно відкрили.
   const sheet = useCountSheet(open)
   const convert = useConverter()
+  const { data: currencies = [] } = useCurrencies()
   const preset = SPEND_KINDS[kind]
   const incoming = kind === 'capital'
+  // Внесок і вилучення власника не питають «звідки»: будь-яка валюта
+  // перераховується в гривні за курсом і йде через гривневу готівку поза
+  // касами. Обирати рахунок під кожну валюту — зайвий крок, а гривнева
+  // проводка до того ж фіксує суму за курсом цього моменту.
+  const ownerMove = kind !== 'expense'
+  const pivot = currencies.find((item) => item.isBase)?.code ?? 'UAH'
 
   const form = useForm({
     resolver: zodResolver(spendingSchema),
@@ -283,7 +299,6 @@ export function SpendDialog({ kind, trigger }) {
       currency: 'UAH',
       amount: '',
       comment: '',
-      occurredOn: '',
     },
   })
   const { source, currency, amount } = form.watch()
@@ -295,23 +310,26 @@ export function SpendDialog({ kind, trigger }) {
     // Для внеску є ще один «звідки»: гроші вже в касі, просто перерахунок
     // записав їх виторгом. Тоді нічого не рухається, крім класифікації.
     ...(incoming ? [{ value: 'income', label: 'Вже в касі — списати з виторгу' }] : []),
-    { value: 'cash', label: `Готівка поза касами (${currency})`, currency },
+    { value: 'cash', label: `Готівка поза касами (${withFlag(currency)})`, currency },
     ...(sheet.data?.cash ?? [])
       .filter((row) => row.currency !== currency && row.balance !== '0')
       .map((row) => ({
         value: `cash:${row.currency}`,
-        label: `Готівка поза касами (${row.currency})`,
+        label: `Готівка поза касами (${withFlag(row.currency)})`,
         currency: row.currency,
       })),
     ...(registers.data ?? []).map((r) => ({
       value: `register:${r.id}`,
-      label: `Каса «${r.name}» (${r.currency})`,
+      label: `Каса «${r.name}» (${withFlag(r.currency)})`,
       currency: r.currency,
     })),
   ]
 
-  const reclassifying = incoming && source === 'income'
-  const sourceCurrency = sources.find((option) => option.value === source)?.currency ?? currency
+  const effectiveSource = ownerMove ? `cash:${pivot}` : source
+  const reclassifying = incoming && effectiveSource === 'income'
+  const sourceCurrency = ownerMove
+    ? pivot
+    : (sources.find((option) => option.value === source)?.currency ?? currency)
 
   // Скільки насправді зрушить у касі: якщо джерело в іншій валюті, сума
   // перераховується за середнім курсом — тим самим, яким рахує сервер.
@@ -321,8 +339,8 @@ export function SpendDialog({ kind, trigger }) {
   // кладе, тож ліміту не має — крім «вже в касі», де списується виторг.
   const available = (() => {
     if (incoming || reclassifying || !sheet.data) return null
-    if (source.startsWith('register:')) {
-      const id = source.slice('register:'.length)
+    if (effectiveSource.startsWith('register:')) {
+      const id = effectiveSource.slice('register:'.length)
       return sheet.data.registers.find((row) => row.id === id)?.balance ?? '0'
     }
     return sheet.data.cash.find((row) => row.currency === sourceCurrency)?.balance ?? '0'
@@ -330,15 +348,12 @@ export function SpendDialog({ kind, trigger }) {
 
   const tooMuch = available != null && moved ? BigInt(moved) > BigInt(available) : false
 
-  const onSubmit = form.handleSubmit(async ({ occurredOn, ...values }) => {
+  // Дата не вводиться: запис стає тим моментом, коли його зробили, — так
+  // само, як у журналі стоїть будь-який інший рух.
+  const onSubmit = form.handleSubmit(async (values) => {
     try {
       await spend.mutateAsync({
-        body: {
-          ...values,
-          // Опівдні, а не опівночі: дата, зсунута часовим поясом, інакше
-          // стрибає на день назад у всіх, хто західніше Гринвіча.
-          ...(occurredOn ? { occurredAt: new Date(`${occurredOn}T12:00:00`).toISOString() } : {}),
-        },
+        body: { ...values, source: effectiveSource },
         key: crypto.randomUUID(),
       })
       form.reset({
@@ -347,7 +362,6 @@ export function SpendDialog({ kind, trigger }) {
         currency: values.currency,
         amount: '',
         comment: '',
-        occurredOn: '',
       })
       setOpen(false)
     } catch (error) {
@@ -401,46 +415,57 @@ export function SpendDialog({ kind, trigger }) {
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor={`spend-source-${kind}`}>{incoming ? 'Звідки гроші' : 'Звідки'}</Label>
-            <Select value={source} onValueChange={(value) => form.setValue('source', value)}>
-              <SelectTrigger id={`spend-source-${kind}`}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {sources.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <FieldError message={form.formState.errors.source?.message} />
-            {available != null && (
-              <p className="text-xs text-muted-foreground">
-                Доступно: <Amount value={available} currency={sourceCurrency} size="sm" />
-                {sourceCurrency !== currency && moved && (
-                  <>
-                    {' · '}спишеться ≈ <Amount value={moved} currency={sourceCurrency} size="sm" />
-                  </>
-                )}
-              </p>
-            )}
-            {reclassifying && (
-              <p className="text-xs text-muted-foreground">
-                Каса не зміниться — гроші вже в ній. Зменшиться лише виторг, а з ним і прибуток:
-                ці кошти ви не заробили, а принесли.
-              </p>
-            )}
-          </div>
-
-          <div className="space-y-2">
-            {/* Дата події, а не запису: витрату за минулий вівторок вносять у
-                четвер, і в звіті вона має стояти вівторком. Порожньо —
-                значить сьогодні. */}
-            <Label htmlFor={`spend-date-${kind}`}>Дата</Label>
-            <Input id={`spend-date-${kind}`} type="date" {...form.register('occurredOn')} />
-          </div>
+          {ownerMove ? (
+            // Звідки — не питаємо: гривнева готівка поза касами. Показуємо
+            // лише, скільки гривень це складе і скільки їх є.
+            <p className="rounded-lg bg-muted/60 p-3 text-xs text-muted-foreground">
+              {incoming ? 'Додасться до' : 'Спишеться з'} готівки поза касами
+              {sourceCurrency !== currency && moved && (
+                <>
+                  {': '}≈ <Amount value={moved} currency={sourceCurrency} size="sm" />
+                </>
+              )}
+              {available != null && (
+                <>
+                  {' · '}доступно <Amount value={available} currency={sourceCurrency} size="sm" />
+                </>
+              )}
+            </p>
+          ) : (
+            <div className="space-y-2">
+              <Label htmlFor={`spend-source-${kind}`}>{incoming ? 'Звідки гроші' : 'Звідки'}</Label>
+              <Select value={source} onValueChange={(value) => form.setValue('source', value)}>
+                <SelectTrigger id={`spend-source-${kind}`}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {sources.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <FieldError message={form.formState.errors.source?.message} />
+              {available != null && (
+                <p className="text-xs text-muted-foreground">
+                  Доступно: <Amount value={available} currency={sourceCurrency} size="sm" />
+                  {sourceCurrency !== currency && moved && (
+                    <>
+                      {' · '}спишеться ≈{' '}
+                      <Amount value={moved} currency={sourceCurrency} size="sm" />
+                    </>
+                  )}
+                </p>
+              )}
+              {reclassifying && (
+                <p className="text-xs text-muted-foreground">
+                  Каса не зміниться — гроші вже в ній. Зменшиться лише виторг, а з ним і прибуток:
+                  ці кошти ви не заробили, а принесли.
+                </p>
+              )}
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label htmlFor={`spend-comment-${kind}`}>Причина</Label>

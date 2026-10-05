@@ -112,7 +112,7 @@ export const shares = {
 }
 
 export const stats = {
-  summary: () => api.get('/stats/summary'),
+  summary: (params) => api.get('/stats/summary', params),
   balanceHistory: (params) => api.get('/stats/balance-history', params),
   exportCsv: () => api.text('/stats/export.csv'),
 }

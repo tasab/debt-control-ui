@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowLeftRight, Receipt, Repeat, Snowflake } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -12,10 +13,32 @@ import { ShareBalanceDialog } from './ShareBalance.tsx'
 import { TopUpDialog } from './TopUp.tsx'
 import { Investments, PendingInvites } from './Investments.tsx'
 import { TransactionList } from './TransactionList.tsx'
+import { CurrencyCode } from '@/components/money/Flag'
+import { CurrencySelect } from '@/components/money/CurrencySelect'
+
+const NET_WORTH_KEY = 'wallet-net-worth-currency'
 
 export default function Wallet() {
   const wallets = useWallets()
-  const summary = useSummary()
+  // У якій валюті рахувати чисту вартість — вибір живе в браузері: це спосіб
+  // подивитися на ті самі гроші, а не налаштування рахунку. `null` — базова
+  // валюта сервера.
+  const [currency, setStored] = useState(() => {
+    try {
+      return localStorage.getItem(NET_WORTH_KEY)
+    } catch {
+      return null
+    }
+  })
+  const setCurrency = (next) => {
+    setStored(next)
+    try {
+      localStorage.setItem(NET_WORTH_KEY, next)
+    } catch {
+      // Не зберегли — вибір діє до перезавантаження.
+    }
+  }
+  const summary = useSummary(currency)
 
   return (
     <div className="space-y-6">
@@ -25,7 +48,7 @@ export default function Wallet() {
       <PendingInvites />
 
       {summary.isLoading && !summary.data && <HeroSkeleton />}
-      {summary.data && <Hero summary={summary.data} />}
+      {summary.data && <Hero summary={summary.data} onCurrencyChange={setCurrency} />}
 
       <QuickActions />
 
@@ -50,7 +73,7 @@ export default function Wallet() {
  * статтях їде під нею стрічкою — на телефоні п’ять підписів у ряд інакше
  * ламаються в три рядки дрібного тексту, який ніхто не читає.
  */
-function Hero({ summary }) {
+function Hero({ summary, onCurrencyChange }) {
   const items = [
     { label: 'На гаманцях', value: summary.wallets },
     { label: 'Заморожено', value: summary.held },
@@ -64,10 +87,19 @@ function Hero({ summary }) {
       <div className="bg-primary/8 px-5 py-6">
         <div className="flex items-start justify-between gap-3">
           <p className="text-sm text-muted-foreground">Чиста вартість</p>
-          {/* Кнопка стоїть біля самого числа, яким діляться, а не в меню:
-              «показати баланс» — дія над цією цифрою, і шукати її десь іще
-              немає причин. */}
-          <ShareBalanceDialog />
+          <div className="flex items-center gap-2">
+            {/* Перемикач валюти — біля самого числа, яке він перераховує. */}
+            <CurrencySelect
+              id="wallet-net-worth-currency"
+              className="h-8 w-auto gap-1 bg-background px-2 text-xs"
+              value={summary.baseCurrency}
+              onChange={onCurrencyChange}
+            />
+            {/* Кнопка стоїть біля самого числа, яким діляться, а не в меню:
+                «показати баланс» — дія над цією цифрою, і шукати її десь іще
+                немає причин. */}
+            <ShareBalanceDialog />
+          </div>
         </div>
         <p className="mt-1.5">
           <Amount
@@ -113,16 +145,16 @@ function HeroSkeleton() {
  */
 function QuickActions() {
   const actions = [
-    { to: '/transfer', label: 'Переказати', icon: ArrowLeftRight },
-    { to: '/convert', label: 'Обміняти', icon: Repeat },
-    { to: '/history', label: 'Історія', icon: Receipt },
+    { to: '/transfer', label: 'Переказати', icon: ArrowLeftRight, tone: 'indigo' },
+    { to: '/convert', label: 'Обміняти', icon: Repeat, tone: 'amber' },
+    { to: '/history', label: 'Історія', icon: Receipt, tone: 'violet' },
   ]
 
   return (
     <div className="grid grid-cols-4 gap-2 sm:gap-3">
       <TopUpDialog asTile />
       {actions.map((action) => (
-        <Link key={action.to} to={action.to} className={actionTileClass()}>
+        <Link key={action.to} to={action.to} className={actionTileClass(action.tone)}>
           <action.icon className="size-5" aria-hidden />
           <ActionTileLabel>{action.label}</ActionTileLabel>
         </Link>
@@ -157,7 +189,7 @@ function WalletGrid({ wallets }) {
               <CardContent className="space-y-3 px-4 py-4">
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="text-sm font-semibold">{wallet.currency}</p>
+                    <CurrencyCode code={wallet.currency} className="block text-sm font-semibold" />
                     {!isZero(wallet.held) && (
                       <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
                         <Snowflake className="size-3.5 shrink-0" aria-hidden />
@@ -203,9 +235,7 @@ function WalletGrid({ wallets }) {
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl border border-dashed px-4 py-3 text-sm text-muted-foreground">
           <span>Порожні:</span>
           {empty.map((wallet) => (
-            <span key={wallet.currency} className="font-medium">
-              {wallet.currency}
-            </span>
+            <CurrencyCode key={wallet.currency} code={wallet.currency} className="font-medium" />
           ))}
         </div>
       )}

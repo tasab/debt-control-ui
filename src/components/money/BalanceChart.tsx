@@ -14,6 +14,8 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { EmptyState, ErrorState, RowsSkeleton } from '@/components/layout/states'
 import { formatAmount } from '@/lib/money'
 import { useBalanceHistory, useSummary } from '@/lib/hooks'
+import { withFlag } from '@/lib/currency'
+import { CurrencyCode } from './Flag'
 
 export const RANGES = {
   '30': 'Місяць',
@@ -46,7 +48,7 @@ export function BalanceChart({ title = 'Динаміка портфеля', defa
         <div>
           <CardTitle className="text-base">{title}</CardTitle>
           <CardDescription>
-            Гаманець і вкладене в {currency} за поточним курсом.
+            Гаманець і вкладене в <CurrencyCode code={currency} /> за поточним курсом.
           </CardDescription>
         </div>
         {/* Перемикач періоду на телефоні розтягується на всю ширину: три
@@ -94,7 +96,7 @@ function Chart({ query, currency }) {
   }))
 
   const money = (value) =>
-    `${formatAmount(String(Math.round(value * 100)), { exponent: 2 })} ${currency}`
+    `${formatAmount(String(Math.round(value * 100)), { exponent: 2 })} ${withFlag(currency)}`
 
   // Вісь Y на телефоні пише «12,5 тис.» замість «12 500»: повний запис
   // з’їдав чверть ширини екрана під самі лише підписи.

@@ -24,3 +24,7 @@ const FLAGS = {
 
 /** Порожньо для невідомої валюти — краще нічого, ніж чужий прапор. */
 export const flagFor = (code) => FLAGS[code] ?? ''
+
+/** Код із прапорцем для місць, де потрібен рядок, а не розмітка: пункти
+ *  списку, підказки графіків. */
+export const withFlag = (code) => [flagFor(code), code].filter(Boolean).join(' ')

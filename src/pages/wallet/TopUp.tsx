@@ -18,6 +18,7 @@ import { CurrencySelect } from '@/components/money/CurrencySelect'
 import { ActionTileLabel, actionTileClass } from '@/components/layout/ActionTile'
 import { cn } from '@/lib/utils'
 import { useTopUpSelf, useWithdrawSelf } from '@/lib/hooks'
+import { CurrencyCode } from '@/components/money/Flag'
 
 /**
  * Записати собі власні кошти — і зняти їх.
@@ -115,7 +116,10 @@ export function TopUpDialog({
     >
       <DialogTrigger asChild>
         {asTile ? (
-          <button type="button" className={actionTileClass()}>
+          <button
+            type="button"
+            className={actionTileClass(mode === 'withdraw' ? 'destructive' : 'success')}
+          >
             <Icon className="size-5" aria-hidden />
             <ActionTileLabel>{copy.tile}</ActionTileLabel>
           </button>
@@ -142,7 +146,7 @@ export function TopUpDialog({
           <DialogTitle>
             {copy.title}
             {fixedCurrency && (
-              <span className="ml-2 font-normal text-muted-foreground">{fixedCurrency}</span>
+              <CurrencyCode code={fixedCurrency} className="ml-2 font-normal text-muted-foreground" />
             )}
           </DialogTitle>
           <DialogDescription>{copy.description}</DialogDescription>
