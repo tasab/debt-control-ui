@@ -128,8 +128,11 @@ function DialogContent({
       >
         <DialogPrimitive.Content
           data-slot="dialog-content"
+          // Колонка `minmax(0,1fr)`, а не неявна auto: інакше одна задовга
+          // штука всередині розтягувала всю колонку, і вікно на телефоні
+          // прокручувалось убік.
           className={cn(
-            "pointer-events-auto relative grid max-h-full w-full max-w-lg gap-4 overflow-y-auto overscroll-contain rounded-xl border bg-background p-5 shadow-lg duration-200 outline-none sm:max-h-[85%] sm:p-6",
+            "pointer-events-auto relative grid max-h-full w-full max-w-lg grid-cols-[minmax(0,1fr)] gap-4 overflow-y-auto overscroll-contain rounded-xl border bg-background p-5 shadow-lg duration-200 outline-none sm:max-h-[85%] sm:p-6",
             "data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0",
             "data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
             className

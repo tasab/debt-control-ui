@@ -99,7 +99,10 @@ function MemberCard({ member }) {
   const finished = member.status === 'ended' || member.status === 'declined'
 
   return (
-    <Card>
+    // `min-w-0` — не косметика: картка лежить у гріді, а колонка за
+    // замовчуванням розтягується під найдовше ім’я чи пошту. Без нього на
+    // вузькому телефоні картка вилазила за екран і сторінка їздила вбік.
+    <Card className="min-w-0">
       <CardContent className="space-y-2 p-3">
         <div className="flex items-start justify-between gap-3">
           <div className="flex min-w-0 items-center gap-2.5">

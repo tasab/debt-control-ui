@@ -554,7 +554,13 @@ function CapitalBreakdown({ data, trigger }) {
             <DialogTitle className="text-sm font-medium text-muted-foreground">
               Мій капітал
             </DialogTitle>
-            <Amount value={equity} currency={currency} size="xl" whole />
+            <Amount
+              value={equity}
+              currency={currency}
+              size="xl"
+              whole
+              className="text-2xl sm:text-4xl"
+            />
           </div>
         </DialogHeader>
         <DialogDescription className="-mt-2">
@@ -565,19 +571,27 @@ function CapitalBreakdown({ data, trigger }) {
         {/* Склад числа: що поклали і скільки з того вже забрали. */}
         <CapitalBar data={data} />
 
-        <div className="grid grid-cols-3 gap-2">
+        {/* На телефоні три плитки в ряд обрізали і підпис, і суму — там вони
+            стають рядками «підпис ліворуч, сума праворуч». */}
+        <div className="grid gap-2 sm:grid-cols-3">
           {parts.map((part) => (
-            <div key={part.key} className={cn('min-w-0 rounded-lg border p-2.5', part.tile)}>
+            <div
+              key={part.key}
+              className={cn(
+                'flex min-w-0 flex-wrap items-baseline justify-between gap-x-3 rounded-lg border p-2.5 sm:block',
+                part.tile,
+              )}
+            >
               <div className="flex items-center gap-1 text-xs text-muted-foreground">
                 <part.icon className={cn('size-3.5 shrink-0', part.tone)} aria-hidden />
                 <span className="truncate">{part.label}</span>
               </div>
-              <p className="mt-1 truncate text-sm font-semibold sm:text-base">
+              <p className="truncate text-sm font-semibold sm:mt-1 sm:text-base">
                 {part.sign && <span className={part.tone}>{part.sign}</span>}
                 <Amount value={part.value} currency={currency} whole showCurrency={false} />
               </p>
               {part.key === 'start' && starting && starting.currency !== currency && (
-                <p className="truncate text-[11px] text-muted-foreground">
+                <p className="w-full truncate text-right text-[11px] text-muted-foreground sm:text-left">
                   <Amount value={starting.amount} currency={starting.currency} whole />
                 </p>
               )}
@@ -590,33 +604,39 @@ function CapitalBreakdown({ data, trigger }) {
             <h3 className="text-sm font-medium">По валютах</h3>
             <ul className="divide-y rounded-lg border">
               {data.ownerCapital.map((row) => (
-                <li key={row.currency} className="flex items-center gap-3 px-3 py-2 text-sm">
-                  <CurrencyCode
-                    code={row.currency}
-                    className="rounded-md bg-muted px-1.5 py-0.5 text-xs font-semibold"
-                  />
-                  <span className="flex min-w-0 flex-1 flex-wrap gap-x-3 text-xs text-muted-foreground">
+                // Код і підсумок — першим рядком, внесено й забрано — під ними:
+                // в один рядок на телефоні три суми налазили одна на одну.
+                <li key={row.currency} className="space-y-0.5 px-3 py-2 text-sm">
+                  <div className="flex items-center justify-between gap-3">
+                    <CurrencyCode
+                      code={row.currency}
+                      className="rounded-md bg-muted px-1.5 py-0.5 text-xs font-semibold"
+                    />
+                    <Amount
+                      value={row.equity}
+                      currency={row.currency}
+                      size="sm"
+                      colored
+                      signed
+                      className="font-semibold"
+                    />
+                  </div>
+                  <div className="flex flex-wrap gap-x-3 text-xs text-muted-foreground">
                     {row.capital !== '0' && (
                       <span>
                         <span className="text-success">+</span>
-                        <Amount value={row.capital} currency={row.currency} showCurrency={false} />
+                        <Amount value={row.capital} currency={row.currency} showCurrency={false} />{' '}
+                        внесено
                       </span>
                     )}
                     {row.draw !== '0' && (
                       <span>
                         <span className="text-destructive">−</span>
-                        <Amount value={row.draw} currency={row.currency} showCurrency={false} />
+                        <Amount value={row.draw} currency={row.currency} showCurrency={false} />{' '}
+                        забрано
                       </span>
                     )}
-                  </span>
-                  <Amount
-                    value={row.equity}
-                    currency={row.currency}
-                    size="sm"
-                    colored
-                    signed
-                    className="font-semibold"
-                  />
+                  </div>
                 </li>
               ))}
             </ul>
