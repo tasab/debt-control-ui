@@ -26,11 +26,17 @@ const LABELS = {
   business_expense: 'Витрата',
   business_draw: 'Забрав собі',
   business_capital: 'Вніс своє',
+  business_capital_reversal: 'Скасування внеску',
+  business_capital_cancel: 'Скасування внеску',
+  business_draw_reversal: 'Скасування вилучення',
+  business_expense_reversal: 'Скасування витрати',
   contribution: 'Вклад учасника',
   membership_funding: 'Кошти учасника при вступі',
   membership_closing: 'Виплата при завершенні участі',
   membership_withdrawal: 'Зняття учасником',
   claim_transfer: 'Переказ між учасниками',
+  adjustment: 'Правка адміністратором',
+  owner_adjustment: 'Правка власником',
   internal_transfer: 'Переміщення коштів',
   user_deletion: 'Списання при видаленні',
 }
@@ -116,7 +122,19 @@ function Move({ move }) {
             <span className="truncate text-muted-foreground">
               {(PLACES[line.kind] ?? (() => line.kind))(line.name)}
             </span>
-            <Amount value={line.amount} currency={line.currency} size="sm" colored signed />
+            {/* Борг у журналі від'ємний, тож без розвороту «борг зріс на 100»
+                читався б як «−100». Тут плюс — бізнес винен більше. Без
+                кольору: зростання боргу не добре й не погане само собою. */}
+            {line.kind === 'member_claim' ? (
+              <Amount
+                value={line.amount.startsWith('-') ? line.amount.slice(1) : `-${line.amount}`}
+                currency={line.currency}
+                size="sm"
+                signed
+              />
+            ) : (
+              <Amount value={line.amount} currency={line.currency} size="sm" colored signed />
+            )}
           </div>
         ))}
       </div>

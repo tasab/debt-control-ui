@@ -1,5 +1,15 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ArrowLeftRight, CreditCard, Search, Trash2, User, UserPlus, Users, X } from 'lucide-react'
+import {
+  ArrowLeftRight,
+  CreditCard,
+  Search,
+  SlidersHorizontal,
+  Trash2,
+  User,
+  UserPlus,
+  Users,
+  X,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import {
@@ -23,6 +33,7 @@ import { useConfirm } from '@/components/layout/Confirm'
 import { formatAmount, formatBps } from '@/lib/money'
 import { cn } from '@/lib/utils'
 import {
+  useAdjustMember,
   useContributions,
   useEndMembership,
   useHideMember,
@@ -179,7 +190,16 @@ function MemberCard({ member }) {
           ))}
         </div>
 
-        {owing.length > 0 && <PayForMemberDialog member={member} owing={owing} />}
+        {member.status === 'active' && (
+          <div className="grid grid-cols-2 gap-2">
+            <AdjustMemberDialog member={member} />
+            {owing.length > 0 ? (
+              <PayForMemberDialog member={member} owing={owing} />
+            ) : (
+              <span />
+            )}
+          </div>
+        )}
 
         <p className="text-xs text-muted-foreground">
           Ставка: {formatBps(member.rateAnnualBps, { zeroLabel: 'без відсотків' })}
@@ -242,7 +262,7 @@ function PayForMemberDialog({ member, owing }) {
       }}
     >
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="w-full">
+        <Button variant="outline" size="sm" className="w-full px-2">
           <CreditCard className="size-4" aria-hidden />
           Оплатив зі своїх
         </Button>
@@ -310,6 +330,172 @@ function PayForMemberDialog({ member, owing }) {
           <DialogFooter>
             <Button type="submit" disabled={pay.isPending || !ready}>
               {pay.isPending ? 'Записуємо…' : 'Записати'}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+const ADJUST_MODES = [
+  { value: 'set', label: 'Встановити' },
+  { value: 'credit', label: 'Додати' },
+  { value: 'debit', label: 'Списати' },
+]
+
+/**
+ * Правка боргу перед учасником — з вкладки бізнесу, без адмінки.
+ *
+ * Облік той самий, що в адмінці: різниця йде в прибуток (менший борг —
+ * прибуток росте, більший — падає). Це виправлення помилки, а не рух
+ * грошей; якщо ви закрили борг своїми грошима — для цього «Оплатив зі
+ * своїх». В історії правка підписана «Правка власником».
+ */
+function AdjustMemberDialog({ member }) {
+  const [open, setOpen] = useState(false)
+  const adjust = useAdjustMember()
+  const first = member.balances.find((row) => row.balance !== '0')?.currency ?? 'UAH'
+  const [currency, setCurrency] = useState(first)
+  const [mode, setMode] = useState('set')
+  const [amount, setAmount] = useState('')
+  const [comment, setComment] = useState('')
+  const [error, setError] = useState(null)
+
+  const before = member.balances.find((row) => row.currency === currency)?.balance ?? '0'
+  const after = (() => {
+    if (amount === '') return null
+    const value = BigInt(amount)
+    if (mode === 'set') return value
+    return mode === 'credit' ? BigInt(before) + value : BigInt(before) - value
+  })()
+  const delta = after == null ? null : after - BigInt(before)
+  const negative = after != null && after < 0n
+  const ready = delta != null && delta !== 0n && !negative && comment.trim().length >= 3
+
+  const submit = async (event) => {
+    event.preventDefault()
+    if (!ready) return
+    setError(null)
+    try {
+      await adjust.mutateAsync({
+        id: member.id,
+        body: { currency, mode, amount, comment: comment.trim() },
+        key: crypto.randomUUID(),
+      })
+      setOpen(false)
+    } catch (failure) {
+      setError(failure.fields?.amount ?? failure.fields?.comment ?? failure.message)
+    }
+  }
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next)
+        if (next) {
+          setCurrency(first)
+          setMode('set')
+          setAmount('')
+          setComment('')
+          setError(null)
+        }
+      }}
+    >
+      <DialogTrigger asChild>
+        <Button variant="outline" size="sm" className="w-full px-2">
+          <SlidersHorizontal className="size-4" aria-hidden />
+          Змінити баланс
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Змінити баланс</DialogTitle>
+          <DialogDescription>
+            Скільки бізнес винен учаснику {member.displayName}. Це виправлення: різниця піде в
+            прибуток, а в історії правка буде підписана «Правка власником». Якщо ви закрили борг
+            своїми грошима — краще «Оплатив зі своїх».
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={submit} className="space-y-4" noValidate>
+          <div className="grid grid-cols-3 gap-1 rounded-lg bg-muted p-1" role="radiogroup">
+            {ADJUST_MODES.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                role="radio"
+                aria-checked={mode === option.value}
+                onClick={() => setMode(option.value)}
+                className={cn(
+                  'rounded-md px-2 py-1.5 text-sm font-medium transition-colors',
+                  mode === option.value
+                    ? 'bg-background shadow-xs'
+                    : 'text-muted-foreground hover:text-foreground',
+                )}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-[1fr_7rem] gap-3 sm:grid-cols-[1fr_8rem] sm:gap-4">
+            <div className="space-y-2">
+              <Label htmlFor={`adjust-${member.id}-amount`}>
+                {mode === 'set' ? 'Має бути' : 'Сума'}
+              </Label>
+              <AmountInput
+                id={`adjust-${member.id}-amount`}
+                currency={currency}
+                value={amount}
+                onChange={(value) => setAmount(value ?? '')}
+                error={negative ? 'Борг не може бути менше нуля' : undefined}
+                autoFocus
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor={`adjust-${member.id}-currency`}>Валюта</Label>
+              <CurrencySelect
+                id={`adjust-${member.id}-currency`}
+                className="w-full"
+                value={currency}
+                onChange={setCurrency}
+              />
+            </div>
+          </div>
+
+          <p className="rounded-lg bg-muted/60 p-3 text-xs text-muted-foreground">
+            Зараз бізнес винен <Amount value={before} currency={currency} size="sm" />
+            {after != null && !negative && delta !== 0n && (
+              <>
+                {' · '}стане <Amount value={after.toString()} currency={currency} size="sm" />
+                {' · '}прибуток{' '}
+                <span className={delta > 0n ? 'text-destructive' : 'text-success'}>
+                  {delta > 0n ? '−' : '+'}
+                  <Amount
+                    value={(delta > 0n ? delta : -delta).toString()}
+                    currency={currency}
+                    size="sm"
+                  />
+                </span>
+              </>
+            )}
+          </p>
+
+          <div className="space-y-2">
+            <Label htmlFor={`adjust-${member.id}-comment`}>Причина</Label>
+            <Input
+              id={`adjust-${member.id}-comment`}
+              placeholder="Помилка при записі внеску"
+              value={comment}
+              onChange={(event) => setComment(event.target.value)}
+            />
+          </div>
+
+          {error && <p className="text-sm text-destructive">{error}</p>}
+          <DialogFooter>
+            <Button type="submit" disabled={adjust.isPending || !ready}>
+              {adjust.isPending ? 'Записуємо…' : 'Записати'}
             </Button>
           </DialogFooter>
         </form>

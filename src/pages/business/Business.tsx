@@ -321,6 +321,7 @@ const OWNER_MOVE_TYPES = [
   'business_capital',
   'business_draw',
   'business_capital_cancel',
+  'business_capital_reversal',
   'business_draw_reversal',
 ]
 

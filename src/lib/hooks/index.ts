@@ -287,6 +287,13 @@ export const usePayForMember = () =>
     { success: 'Записано: борг зменшено, ваш капітал зріс' },
   )
 
+// Правка боргу перед учасником власником — як в адмінці, різниця в прибуток.
+export const useAdjustMember = () =>
+  useMoneyMutation(
+    ({ id, body, key }) => apis.business.adjustMember(id, body, keyOption(key)),
+    { success: 'Борг учасника змінено' },
+  )
+
 export const useHideMember = () =>
   useMoneyMutation(apis.business.hideMember, { success: 'Учасника прибрано зі списку' })
 

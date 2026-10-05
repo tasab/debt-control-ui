@@ -64,6 +64,8 @@ export const business = {
   invite: (body) => api.post('/businesses/me/members', body),
   endMembership: (id) => api.del(`/businesses/me/members/${id}`),
   hideMember: (id) => api.post(`/businesses/me/members/${id}/hide`),
+  adjustMember: (id, body, options) =>
+    api.post(`/businesses/me/members/${id}/adjustments`, body, options),
   payForMember: (id, body, options) =>
     api.post(`/businesses/me/members/${id}/paid-by-owner`, body, options),
   setMemberRate: (id, body) => api.put(`/businesses/me/members/${id}/rate`, body),
