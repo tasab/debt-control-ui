@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   ArrowLeftRight,
   CreditCard,
+  Minus,
+  Plus,
   Search,
   SlidersHorizontal,
   Trash2,
@@ -338,10 +340,23 @@ function PayForMemberDialog({ member, owing }) {
   )
 }
 
+// Списати — першим і за замовчуванням: борг правлять здебільшого вниз.
+// Колір — як у сумах по всьому застосунку: червоне забирає, зелене додає.
 const ADJUST_MODES = [
-  { value: 'set', label: 'Встановити' },
-  { value: 'credit', label: 'Додати' },
-  { value: 'debit', label: 'Списати' },
+  {
+    value: 'debit',
+    label: 'Списати',
+    icon: Minus,
+    active: 'bg-destructive text-white shadow-xs',
+    idle: 'text-destructive hover:bg-destructive/10',
+  },
+  {
+    value: 'credit',
+    label: 'Додати',
+    icon: Plus,
+    active: 'bg-success text-success-foreground shadow-xs',
+    idle: 'text-success hover:bg-success/10',
+  },
 ]
 
 /**
@@ -357,7 +372,7 @@ function AdjustMemberDialog({ member }) {
   const adjust = useAdjustMember()
   const first = member.balances.find((row) => row.balance !== '0')?.currency ?? 'UAH'
   const [currency, setCurrency] = useState(first)
-  const [mode, setMode] = useState('set')
+  const [mode, setMode] = useState('debit')
   const [amount, setAmount] = useState('')
   const [comment, setComment] = useState('')
   const [error, setError] = useState(null)
@@ -366,7 +381,6 @@ function AdjustMemberDialog({ member }) {
   const after = (() => {
     if (amount === '') return null
     const value = BigInt(amount)
-    if (mode === 'set') return value
     return mode === 'credit' ? BigInt(before) + value : BigInt(before) - value
   })()
   const delta = after == null ? null : after - BigInt(before)
@@ -396,7 +410,7 @@ function AdjustMemberDialog({ member }) {
         setOpen(next)
         if (next) {
           setCurrency(first)
-          setMode('set')
+          setMode('debit')
           setAmount('')
           setComment('')
           setError(null)
@@ -419,7 +433,7 @@ function AdjustMemberDialog({ member }) {
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} className="space-y-4" noValidate>
-          <div className="grid grid-cols-3 gap-1 rounded-lg bg-muted p-1" role="radiogroup">
+          <div className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1" role="radiogroup">
             {ADJUST_MODES.map((option) => (
               <button
                 key={option.value}
@@ -428,12 +442,11 @@ function AdjustMemberDialog({ member }) {
                 aria-checked={mode === option.value}
                 onClick={() => setMode(option.value)}
                 className={cn(
-                  'rounded-md px-2 py-1.5 text-sm font-medium transition-colors',
-                  mode === option.value
-                    ? 'bg-background shadow-xs'
-                    : 'text-muted-foreground hover:text-foreground',
+                  'flex items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-sm font-medium transition-colors',
+                  mode === option.value ? option.active : option.idle,
                 )}
               >
+                <option.icon className="size-4" aria-hidden />
                 {option.label}
               </button>
             ))}
@@ -441,9 +454,7 @@ function AdjustMemberDialog({ member }) {
 
           <div className="grid grid-cols-[1fr_7rem] gap-3 sm:grid-cols-[1fr_8rem] sm:gap-4">
             <div className="space-y-2">
-              <Label htmlFor={`adjust-${member.id}-amount`}>
-                {mode === 'set' ? 'Має бути' : 'Сума'}
-              </Label>
+              <Label htmlFor={`adjust-${member.id}-amount`}>Сума</Label>
               <AmountInput
                 id={`adjust-${member.id}-amount`}
                 currency={currency}
