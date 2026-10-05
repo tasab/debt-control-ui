@@ -280,6 +280,13 @@ export const useEndMembership = () =>
   })
 
 /** Прибрати картку зі списку. Рядок і його рахунки в журналі лишаються. */
+// Власник заплатив за учасника зі своїх: борг меншає, капітал власника росте.
+export const usePayForMember = () =>
+  useMoneyMutation(
+    ({ id, body, key }) => apis.business.payForMember(id, body, keyOption(key)),
+    { success: 'Записано: борг зменшено, ваш капітал зріс' },
+  )
+
 export const useHideMember = () =>
   useMoneyMutation(apis.business.hideMember, { success: 'Учасника прибрано зі списку' })
 

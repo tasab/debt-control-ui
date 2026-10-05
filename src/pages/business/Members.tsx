@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ArrowLeftRight, Search, Trash2, User, UserPlus, Users, X } from 'lucide-react'
+import { ArrowLeftRight, CreditCard, Search, Trash2, User, UserPlus, Users, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -14,6 +15,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Amount } from '@/components/money/Amount'
+import { AmountInput } from '@/components/money/AmountInput'
+import { CurrencySelect } from '@/components/money/CurrencySelect'
 import { EmptyState, RowsSkeleton } from '@/components/layout/states'
 import { SectionHeader } from '@/components/layout/Section'
 import { useConfirm } from '@/components/layout/Confirm'
@@ -25,6 +28,7 @@ import {
   useHideMember,
   useInviteMember,
   useMembers,
+  usePayForMember,
   useUserSearch,
 } from '@/lib/hooks'
 import { withFlag } from '@/lib/currency'
@@ -175,6 +179,8 @@ function MemberCard({ member }) {
           ))}
         </div>
 
+        {owing.length > 0 && <PayForMemberDialog member={member} owing={owing} />}
+
         <p className="text-xs text-muted-foreground">
           Ставка: {formatBps(member.rateAnnualBps, { zeroLabel: 'без відсотків' })}
           {member.joinedAt && ` · з ${new Date(member.joinedAt).toLocaleDateString('uk-UA')}`}
@@ -182,6 +188,133 @@ function MemberCard({ member }) {
 
       </CardContent>
     </Card>
+  )
+}
+
+/**
+ * «Оплатив зі своїх» — власник заплатив за учасника власними грошима, повз
+ * каси бізнесу.
+ *
+ * Борг перед учасником меншає, а капітал власника росте на ту саму суму:
+ * гроші не заробив бізнес, їх вклав власник. Тому прибуток не змінюється.
+ * Списати борг правкою балансу показало б цю суму як заробіток.
+ */
+function PayForMemberDialog({ member, owing }) {
+  const [open, setOpen] = useState(false)
+  const pay = usePayForMember()
+  const [currency, setCurrency] = useState(owing[0].currency)
+  const [amount, setAmount] = useState('')
+  const [comment, setComment] = useState('')
+  const [error, setError] = useState(null)
+
+  const owed = owing.find((row) => row.currency === currency)?.balance ?? '0'
+  const tooMuch = amount ? BigInt(amount) > BigInt(owed) : false
+  const left = amount && !tooMuch ? (BigInt(owed) - BigInt(amount)).toString() : null
+  const ready = amount && !tooMuch && comment.trim().length >= 3
+
+  const submit = async (event) => {
+    event.preventDefault()
+    if (!ready) return
+    setError(null)
+    try {
+      await pay.mutateAsync({
+        id: member.id,
+        body: { currency, amount, comment: comment.trim() },
+        key: crypto.randomUUID(),
+      })
+      setOpen(false)
+    } catch (failure) {
+      setError(failure.fields?.amount ?? failure.fields?.comment ?? failure.message)
+    }
+  }
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next)
+        if (next) {
+          setCurrency(owing[0].currency)
+          setAmount('')
+          setComment('')
+          setError(null)
+        }
+      }}
+    >
+      <DialogTrigger asChild>
+        <Button variant="outline" size="sm" className="w-full">
+          <CreditCard className="size-4" aria-hidden />
+          Оплатив зі своїх
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Оплатив зі своїх</DialogTitle>
+          <DialogDescription>
+            Ви заплатили за учасника {member.displayName} власними грошима, не з кас бізнесу.
+            Борг перед ним
+            зменшиться, а ваш капітал зросте на ту саму суму. Каси й прибуток не зміняться.
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={submit} className="space-y-4" noValidate>
+          <div className="grid grid-cols-[1fr_7rem] gap-3 sm:grid-cols-[1fr_8rem] sm:gap-4">
+            <div className="space-y-2">
+              <Label htmlFor={`pay-for-${member.id}-amount`}>Сума</Label>
+              <AmountInput
+                id={`pay-for-${member.id}-amount`}
+                currency={currency}
+                value={amount}
+                onChange={(value) => setAmount(value ?? '')}
+                max={owed}
+                onMax={setAmount}
+                error={tooMuch ? 'Більше, ніж бізнес винен' : undefined}
+                autoFocus
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor={`pay-for-${member.id}-currency`}>Валюта</Label>
+              <CurrencySelect
+                id={`pay-for-${member.id}-currency`}
+                className="w-full"
+                value={currency}
+                onChange={setCurrency}
+                only={owing.map((row) => row.currency)}
+              />
+            </div>
+          </div>
+
+          <p className="rounded-lg bg-muted/60 p-3 text-xs text-muted-foreground">
+            Бізнес винен <Amount value={owed} currency={currency} size="sm" />
+            {left != null && (
+              <>
+                {' · '}стане <Amount value={left} currency={currency} size="sm" />
+                {' · '}ваш капітал{' '}
+                <span className="text-success">
+                  +<Amount value={amount} currency={currency} size="sm" />
+                </span>
+              </>
+            )}
+          </p>
+
+          <div className="space-y-2">
+            <Label htmlFor={`pay-for-${member.id}-comment`}>За що</Label>
+            <Input
+              id={`pay-for-${member.id}-comment`}
+              placeholder="Квитки на потяг"
+              value={comment}
+              onChange={(event) => setComment(event.target.value)}
+            />
+          </div>
+
+          {error && <p className="text-sm text-destructive">{error}</p>}
+          <DialogFooter>
+            <Button type="submit" disabled={pay.isPending || !ready}>
+              {pay.isPending ? 'Записуємо…' : 'Записати'}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   )
 }
 
