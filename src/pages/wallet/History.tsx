@@ -31,6 +31,9 @@ const TYPE_OPTIONS = [
   { value: 'funding_hold', label: 'Заморожування' },
   { value: 'repayment_in', label: 'Надходження за позиками' },
   { value: 'repayment_out', label: 'Погашення позик' },
+  // Рухи в бізнесі тепер у тій самій стрічці, тож і фільтр по них тут.
+  { value: 'contribution_in', label: 'Внески в бізнес' },
+  { value: 'contribution_out', label: 'Виплати з бізнесу' },
 ]
 
 const ALL = ALL_CURRENCIES

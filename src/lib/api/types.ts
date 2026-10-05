@@ -65,6 +65,12 @@ export type EntryType =
   | 'internal_in'
   | 'internal_out'
   | 'adjustment'
+  // Рухи боргу бізнесу перед учасником: вони приходять у тій самій стрічці,
+  // бо для людини це ті самі її гроші, просто в справі.
+  | 'contribution_in'
+  | 'contribution_out'
+  | 'claim_in'
+  | 'claim_out'
 
 export interface Counterparty {
   id: string
@@ -78,6 +84,8 @@ export interface TransactionEntry {
   currency: string
   amount: MoneyString
   held: boolean
+  /** Рух стався не в гаманці, а в боргу бізнесу перед людиною. */
+  invested: boolean
   comment: string | null
   counterparty: Counterparty | null
   relatedLoanId: string | null

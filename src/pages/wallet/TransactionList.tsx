@@ -3,6 +3,7 @@ import {
   ArrowDownLeft,
   ArrowUpRight,
   Banknote,
+  Briefcase,
   NotebookPen,
   Percent,
   Receipt,
@@ -40,6 +41,18 @@ const TYPES = {
   // Правка балансу адміністратором — у виписці вона видима так само, як усе
   // інше: гроші не міняються нишком.
   adjustment: { label: 'Коригування адміністратором', icon: SlidersHorizontal },
+  // Рухи в бізнесі. Внесок — це дві сторони одного переказу, і обидві
+  // належать людині: з гаманця вийшло, у справі додалося. Тому підпис
+  // залежить не лише від виду запису, а й від того, де він стався.
+  contribution_in: { label: 'Внесок у бізнес', icon: Briefcase },
+  contribution_out: { label: 'Виплата з бізнесу', icon: Briefcase },
+  claim_out: { label: 'Частку передано', icon: ArrowUpRight },
+  claim_in: { label: 'Частку отримано', icon: ArrowDownLeft },
+}
+
+// Та сама операція з боку бізнесу читається інакше, ніж з боку гаманця.
+const INVESTED_LABELS = {
+  contribution_in: 'Зараховано в бізнесі',
 }
 
 const timeFormat = new Intl.DateTimeFormat('uk-UA', {
@@ -179,9 +192,9 @@ export function MovesList({ items, className }) {
 
 function TransactionRow({ item, linked = true, foreign = false }) {
   const base = TYPES[item.type] ?? { label: item.type, icon: Receipt }
-  const config = foreign && FOREIGN_LABELS[item.type]
-    ? { ...base, label: FOREIGN_LABELS[item.type] }
-    : base
+  const override =
+    (item.invested && INVESTED_LABELS[item.type]) || (foreign && FOREIGN_LABELS[item.type])
+  const config = override ? { ...base, label: override } : base
   const Icon = config.icon
   const incoming = !item.amount.startsWith('-')
   // Рядок без посилання лишається рядком: та сама сітка, ті самі відступи —
@@ -212,6 +225,9 @@ function TransactionRow({ item, linked = true, foreign = false }) {
           <p className="truncate text-xs text-muted-foreground">
             {timeFormat.format(new Date(item.createdAt))}
             {item.counterparty ? ` · ${config.label}` : ''}
+            {/* Рядок про гроші в справі позначений вголос: інакше внесок і
+                зарахування виглядали б двома рухами на гаманці. */}
+            {item.invested ? ' · у бізнесі' : ''}
             {item.comment ? ` · ${item.comment}` : ''}
           </p>
         </div>
