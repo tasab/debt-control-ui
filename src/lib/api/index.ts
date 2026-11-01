@@ -43,6 +43,9 @@ export const business = {
   dashboard: (params) => api.get('/businesses/me/dashboard', params),
   profile: (id) => api.get(`/businesses/${id}`),
   setStartingCapital: (body) => api.put('/businesses/me/starting-capital', body),
+  // Правки «Мого капіталу» й відкат останньої з них.
+  startingCapitalHistory: (params) => api.get('/businesses/me/starting-capital/history', params),
+  cancelStartingCapital: (id) => api.post(`/businesses/me/starting-capital/${id}/cancel`, {}),
   registers: () => api.get('/businesses/me/registers'),
   createRegister: (body) => api.post('/businesses/me/registers', body),
   updateRegister: (id, body) => api.patch(`/businesses/me/registers/${id}`, body),

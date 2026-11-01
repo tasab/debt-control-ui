@@ -56,11 +56,13 @@ import {
   useBusiness,
   useBusinessHistory,
   useCancelOwnerMove,
+  useCancelStartingCapital,
   useCreateBusiness,
   useCurrencies,
   useDashboard,
   useRates,
   useSetStartingCapital,
+  useStartingCapitalHistory,
 } from '@/lib/hooks'
 import { Registers } from './Registers.tsx'
 import { CashCount, CashCountDialog } from './CashCount.tsx'
@@ -360,28 +362,60 @@ function AccordionCard({ title, children }) {
 
 // Сам список рухів — і в картці під капіталом (останні), і у вікні розкладу
 // капіталу (усі): рядок, скасування й підписи мають бути однаковими.
-function OwnMovesList({ currency, limit }) {
+function OwnMovesList({ currency, limit = undefined }) {
   const history = useBusinessHistory()
+  const edits = useStartingCapitalHistory(currency)
   const cancel = useCancelOwnerMove()
+  const cancelEdit = useCancelStartingCapital()
   const confirm = useConfirm()
-  const moves = (history.data ?? [])
-    .filter((move) => OWNER_MOVE_TYPES.includes(move.type))
+  // Правки «Мого капіталу» стоять в одній хронології з рухами: число на
+  // картці зрушують і ті, і ті, і «чому стало стільки» має читатися з одного
+  // списку.
+  const items = [
+    ...(history.data ?? [])
+      .filter((move) => OWNER_MOVE_TYPES.includes(move.type))
+      .map((move) => ({ kind: 'move', at: move.createdAt, move })),
+    ...(edits.data?.edits ?? []).map((edit) => ({ kind: 'edit', at: edit.at, edit })),
+  ]
+    .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
     .slice(0, limit)
   // Що вже скасовано: зустрічна проводка посилається на оригінал, і кнопку в
   // нього треба прибрати, а сам рядок — притишити.
   const cancelled = new Set((history.data ?? []).map((move) => move.reversalOf).filter(Boolean))
+  const loading = history.isLoading || edits.isLoading
 
   return (
     <>
-      {history.isLoading && <RowsSkeleton rows={3} />}
-      {!history.isLoading && moves.length === 0 && (
+      {loading && <RowsSkeleton rows={3} />}
+      {!loading && items.length === 0 && (
         <p className="text-muted-foreground">
           Ще не вносили й не забирали — кнопки під «Моїм капіталом».
         </p>
       )}
-      {moves.length > 0 && (
+      {items.length > 0 && (
         <ul className="divide-y">
-          {moves.map((move) => {
+          {items.map((item) => {
+            if (item.kind === 'edit') {
+              return (
+                <CapitalEditRow
+                  key={item.edit.id}
+                  edit={item.edit}
+                  currency={edits.data?.baseCurrency ?? currency}
+                  pending={cancelEdit.isPending}
+                  onCancel={async () => {
+                    const ok = await confirm({
+                      title: 'Скасувати цю правку капіталу?',
+                      description:
+                        'Знову діятиме попереднє значення «Мого капіталу». Каси не зміняться — зміниться лише прибуток. Правка лишиться в історії як скасована.',
+                      confirmLabel: 'Скасувати правку',
+                      destructive: true,
+                    })
+                    if (ok) cancelEdit.mutate(item.edit.id)
+                  }}
+                />
+              )
+            }
+            const move = item.move
             // Рух капіталу — це рядок на рахунку капіталу або вилучення;
             // решта рядків проводки описують, звідки саме гроші прийшли.
             // Капітал росте, коли цей рядок від'ємний, тож знак перевертаємо
@@ -462,6 +496,53 @@ function OwnMovesList({ currency, limit }) {
         </ul>
       )}
     </>
+  )
+}
+
+/**
+ * Рядок правки «Мого капіталу» в історії.
+ *
+ * Сума — на скільки зрушилось число на картці, а не новий старт: людина
+ * правила капітал, і саме цю різницю вона й пам'ятає. Під нею — що стало.
+ */
+function CapitalEditRow({ edit, currency, pending, onCancel }) {
+  const date = new Date(edit.at)
+  const undone = Boolean(edit.cancelledAt)
+
+  return (
+    <li className="flex items-baseline gap-2 py-2">
+      <span className="min-w-0 flex-1">
+        <span className={cn('flex items-center gap-1.5 truncate', undone && 'line-through opacity-60')}>
+          <Pencil className="size-3 shrink-0 text-muted-foreground" aria-hidden />
+          {edit.delta == null ? 'Стартовий капітал' : 'Правка капіталу'}
+        </span>
+        <span className="text-xs text-muted-foreground">
+          {date.toLocaleDateString('uk-UA', { day: 'numeric', month: 'short' })}
+          {undone && ' · скасовано'}
+        </span>
+      </span>
+      <span className={cn('flex flex-col items-end', undone && 'line-through opacity-60')}>
+        {edit.delta == null ? (
+          <Amount value={edit.base} currency={currency} size="sm" />
+        ) : (
+          <Amount value={edit.delta} currency={currency} size="sm" colored signed />
+        )}
+        <span className="text-xs text-muted-foreground">
+          старт <Amount value={edit.base} currency={currency} whole showCurrency={false} />
+        </span>
+      </span>
+      {edit.canCancel && (
+        <button
+          type="button"
+          aria-label="Скасувати правку капіталу"
+          className="tap -mr-1 flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-destructive"
+          disabled={pending}
+          onClick={onCancel}
+        >
+          <Undo2 className="size-3.5" aria-hidden />
+        </button>
+      )}
+    </li>
   )
 }
 

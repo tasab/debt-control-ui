@@ -214,6 +214,19 @@ export interface Dashboard {
   staleCodes: string[]
 }
 
+/** Одна правка «Мого капіталу»; суми — у валюті показу. */
+export interface CapitalEdit {
+  id: string
+  at: IsoDate
+  amount: MoneyString
+  currency: string
+  base: MoneyString
+  /** На скільки зрушився капітал; null — перше значення, його ставили з нуля. */
+  delta: MoneyString | null
+  cancelledAt: IsoDate | null
+  canCancel: boolean
+}
+
 export interface Register {
   id: string
   name: string

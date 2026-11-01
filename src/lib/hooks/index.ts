@@ -18,6 +18,7 @@ export const keys = {
   cashCounts: ['business', 'cash-counts'],
   monthly: (params) => ['business', 'monthly', params],
   businessHistory: ['business', 'history'],
+  capitalEdits: (currency) => ['business', 'capital-edits', currency],
   members: ['business', 'members'],
   contributions: ['business', 'contributions'],
   memberships: ['memberships'],
@@ -214,6 +215,20 @@ export const useDeleteRegister = () =>
 
 export const useSetStartingCapital = () =>
   useMoneyMutation(apis.business.setStartingCapital, { success: 'Стартовий капітал збережено' })
+
+/** Правки «Мого капіталу» у валюті показу — для історії поруч із внесками. */
+export const useStartingCapitalHistory = (displayCurrency) =>
+  useQuery({
+    queryKey: keys.capitalEdits(displayCurrency ?? null),
+    queryFn: () =>
+      apis.business.startingCapitalHistory(displayCurrency ? { in: displayCurrency } : undefined),
+  })
+
+/** Відкотити останню правку «Мого капіталу». */
+export const useCancelStartingCapital = () =>
+  useMoneyMutation((id) => apis.business.cancelStartingCapital(id), {
+    success: 'Правку капіталу скасовано',
+  })
 
 export const useMoveFunds = () =>
   useMoneyMutation(({ body, key }) => apis.business.move(body, keyOption(key)), {
