@@ -204,6 +204,10 @@ function TransactionRow({ item, linked = true, foreign = false }) {
   // міняється лише те, чи він клікабельний.
   const Row = linked ? Link : 'div'
   const rowProps = linked ? { to: `/history/${item.transactionId}` } : {}
+  // Заголовком — коментар людини: «На ліки» каже більше, ніж «Виплата з
+  // бізнесу». Тип і співрозмовник ідуть рядком нижче, щоб не загубитися.
+  const title = item.comment || item.counterparty?.name || config.label
+  const counterparty = item.comment && item.counterparty ? item.counterparty.name : null
 
   return (
     <li>
@@ -224,14 +228,14 @@ function TransactionRow({ item, linked = true, foreign = false }) {
         </span>
 
         <div className="min-w-0 flex-1">
-          <p className="truncate font-medium">{item.counterparty?.name ?? config.label}</p>
+          <p className="truncate font-medium">{title}</p>
           <p className="truncate text-xs text-muted-foreground">
             {timeFormat.format(new Date(item.createdAt))}
-            {item.counterparty ? ` · ${config.label}` : ''}
+            {counterparty ? ` · ${counterparty}` : ''}
+            {title !== config.label ? ` · ${config.label}` : ''}
             {/* Рядок про гроші в справі позначений вголос: інакше внесок і
                 зарахування виглядали б двома рухами на гаманці. */}
             {item.invested ? ' · у бізнесі' : ''}
-            {item.comment ? ` · ${item.comment}` : ''}
           </p>
         </div>
 

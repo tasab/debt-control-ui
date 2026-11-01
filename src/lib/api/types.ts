@@ -220,6 +220,7 @@ export interface CapitalEdit {
   at: IsoDate
   amount: MoneyString
   currency: string
+  comment: string | null
   base: MoneyString
   /** На скільки зрушився капітал; null — перше значення, його ставили з нуля. */
   delta: MoneyString | null

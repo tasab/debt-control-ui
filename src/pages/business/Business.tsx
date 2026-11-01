@@ -135,6 +135,7 @@ function CapitalDialog({ data }) {
   const moves = BigInt(current) - BigInt(data.startingCapital?.base ?? '0')
   const prefill = () => (BigInt(current) > 0n ? current : '')
   const [amount, setAmount] = useState(prefill)
+  const [comment, setComment] = useState('')
 
   const starting = amount ? BigInt(amount) - moves : null
   const tooSmall = starting != null && starting <= 0n
@@ -142,7 +143,7 @@ function CapitalDialog({ data }) {
   const submit = async (event) => {
     event.preventDefault()
     if (!amount || tooSmall) return
-    await save.mutateAsync({ amount: starting.toString(), currency })
+    await save.mutateAsync({ amount: starting.toString(), currency, comment: comment.trim() })
     setOpen(false)
   }
 
@@ -151,7 +152,10 @@ function CapitalDialog({ data }) {
       open={open}
       onOpenChange={(next) => {
         setOpen(next)
-        if (next) setAmount(prefill())
+        if (next) {
+          setAmount(prefill())
+          setComment('')
+        }
       }}
     >
       <DialogTrigger asChild>
@@ -194,6 +198,16 @@ function CapitalDialog({ data }) {
                 .
               </p>
             )}
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="capital-comment">Коментар</Label>
+            <Input
+              id="capital-comment"
+              placeholder="Переніс прибуток у капітал"
+              maxLength={280}
+              value={comment}
+              onChange={(event) => setComment(event.target.value)}
+            />
           </div>
           <DialogFooter>
             <Button type="submit" disabled={save.isPending || !amount || tooSmall}>
@@ -508,16 +522,19 @@ function OwnMovesList({ currency, limit = undefined }) {
 function CapitalEditRow({ edit, currency, pending, onCancel }) {
   const date = new Date(edit.at)
   const undone = Boolean(edit.cancelledAt)
+  // Коментар — заголовком, як у внесках; тип тоді йде під ним.
+  const label = edit.delta == null ? 'Стартовий капітал' : 'Правка капіталу'
 
   return (
     <li className="flex items-baseline gap-2 py-2">
       <span className="min-w-0 flex-1">
         <span className={cn('flex items-center gap-1.5 truncate', undone && 'line-through opacity-60')}>
           <Pencil className="size-3 shrink-0 text-muted-foreground" aria-hidden />
-          {edit.delta == null ? 'Стартовий капітал' : 'Правка капіталу'}
+          <span className="truncate">{edit.comment || label}</span>
         </span>
         <span className="text-xs text-muted-foreground">
           {date.toLocaleDateString('uk-UA', { day: 'numeric', month: 'short' })}
+          {edit.comment && ` · ${label.toLowerCase()}`}
           {undone && ' · скасовано'}
         </span>
       </span>
